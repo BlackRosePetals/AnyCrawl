@@ -10,3 +10,6 @@ onlyBuiltDependencies:
     - puppeteer
     - sharp
     - unrs-resolver
+
+patchedDependencies:
+    cloakbrowser@0.5.10: patches/cloakbrowser@0.5.10.patch

@@ -314,6 +314,9 @@ export class ScrapeController {
                 }
             }
 
+            const waitTimeout = this.resolveWaitTimeoutMs(jobPayload, hasExplicitTimeout);
+            const deadlineAt = Date.now() + waitTimeout;
+            (jobPayload as any)._anycrawlJobDeadlineAt = deadlineAt;
             jobId = await QueueManager.getInstance().addJob(`scrape-${engineName}`, jobPayload);
             await createJob({
                 job_id: jobId,
@@ -350,10 +353,9 @@ export class ScrapeController {
             );
 
             // waiting job done - timeout based on proxy mode
-            const waitTimeout = this.resolveWaitTimeoutMs(jobPayload, hasExplicitTimeout);
             log.info(`[SCRAPE] waitJobDone: jobId=${jobId}, proxy=${jobPayload.options.proxy}, timeout=${waitTimeout}`);
-            const job = await QueueManager.getInstance().waitJobDone(`scrape-${engineName}`, jobId, waitTimeout);
-            const { uniqueKey, queueName, options, engine, ...jobData } = job;
+            const job = await QueueManager.getInstance().waitJobDone(`scrape-${engineName}`, jobId, Math.max(1, deadlineAt - Date.now()));
+            const { uniqueKey, queueName, options, engine, _anycrawlJobDeadlineAt, ...jobData } = job;
             // for failed job to cancel the job in the queue
             // Check if job failed
             if (job.status === 'failed' || job.error) {

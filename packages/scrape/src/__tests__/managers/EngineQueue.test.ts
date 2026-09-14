@@ -40,6 +40,14 @@ describe("EngineQueueManager", () => {
         await Promise.resolve();
     });
 
+    it("deduplicates a retried handoff without merging independent jobs", () => {
+        const key = manager.getRequestKey('playwright', 'https://example.com', { jobId: 'one' });
+        expect(manager.getRequestKey('playwright', 'https://example.com', { jobId: 'one' })).toBe(key);
+        expect(manager.getRequestKey('playwright', 'https://example.com', { jobId: 'two' })).not.toBe(key);
+        expect(manager.getRequestKey('playwright', 'https://example.com/other', { jobId: 'one' })).not.toBe(key);
+        expect(key).not.toContain('example.com');
+    });
+
     it("allows an engine to be started again after its run promise settles", async () => {
         const firstRun = createDeferred();
         const secondRun = createDeferred();

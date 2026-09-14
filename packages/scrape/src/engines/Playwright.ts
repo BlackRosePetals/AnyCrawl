@@ -1,3 +1,4 @@
+import { ResilientPlaywrightCrawler } from "./ResilientBrowserCrawler.js";
 import { BaseEngine, BaseEngineType } from "./Base.js";
 import { config } from "@anycrawl/libs";
 import { StickyPlaywrightCrawler } from "./StickyBrowserCrawler.js";
@@ -51,7 +52,7 @@ export class PlaywrightEngine extends BaseEngine {
 
         this.engine = config.proxy.stickyEnabled
             ? new StickyPlaywrightCrawler(enhancedOptions)
-            : new PlaywrightCrawler(enhancedOptions);
+            : new ResilientPlaywrightCrawler(enhancedOptions);
         this.isInitialized = true;
     }
 

@@ -1,4 +1,5 @@
-import { randomUUID } from "node:crypto";
+import { browserFailureDetails } from "../core/BrowserFailure.js";
+import { createHash, randomUUID } from "node:crypto";
 import { RequestQueueV2 } from "crawlee";
 import { Utils } from "../Utils.js";
 import type { EngineOptions } from "../types/engine.js";
@@ -28,9 +29,9 @@ const REAL_ENGINES = AVAILABLE_ENGINES.filter(
 export type EngineType = (typeof AVAILABLE_ENGINES)[number];
 
 log.info(`ignore ssl errors: ${process.env.ANYCRAWL_IGNORE_SSL_ERROR === "true" ? true : false}`);
-log.info(`enable proxy: ${(process.env.ANYCRAWL_PROXY_URL) ? true : false}, ${process.env.ANYCRAWL_PROXY_URL}`);
+log.info(`enable proxy: ${Boolean(process.env.ANYCRAWL_PROXY_URL)}`);
 if (process.env.ANYCRAWL_PROXY_CONFIG) {
-    log.info(`proxy config: ${process.env.ANYCRAWL_PROXY_CONFIG}`);
+    log.info("proxy config configured");
 }
 // Queue manager class to handle all engine queues
 export class EngineQueueManager {
@@ -105,14 +106,14 @@ export class EngineQueueManager {
                         log.warning(`Crawler for ${engineType} exited`);
                     })
                     .catch((error) => {
-                        log.error(`Crawler for ${engineType} failed: ${error}`);
+                        log.error(`Crawler for ${engineType} failed`, browserFailureDetails(error));
                     })
                     .finally(() => {
                         this.engineRuns.delete(engineType);
                     });
                 this.engineRuns.set(engineType, runPromise);
             } catch (error) {
-                log.error(`Error starting crawler for ${engineType}: ${error}`);
+                log.error(`Error starting crawler for ${engineType}`, browserFailureDetails(error));
                 throw error;
             }
         }
@@ -134,12 +135,18 @@ export class EngineQueueManager {
         }
     }
 
+    getRequestKey(engineType: string, url: string, userData: { jobId?: string }): string {
+        return userData.jobId
+            ? createHash("sha256").update(JSON.stringify([engineType, userData.jobId, url])).digest("hex")
+            : randomUUID();
+    }
+
     async addRequest(engineType: string, url: string, userData: object): Promise<string> {
         const queue = this.queues.get(engineType);
         if (!queue) {
             throw new Error(`Queue not found for engine type: ${engineType}`);
         }
-        const uniqueKey = randomUUID().toString() + "-" + url;
+        const uniqueKey = this.getRequestKey(engineType, url, userData);
         await queue.addRequest({
             url,
             uniqueKey,
