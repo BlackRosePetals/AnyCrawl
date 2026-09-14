@@ -1,0 +1,34 @@
+[
+    {
+        "id": "sciencedirect-energy",
+        "url": "https://www.sciencedirect.com/science/article/pii/S2590123025013283",
+        "title": "Global renewable energy transition: A multidisciplinary analysis of emerging computing technologies, socio-economic impacts, and policy imperatives",
+        "bodySelector": "#body, .article-body",
+        "minimumBodyCharacters": 3000,
+        "journal": "Results in Engineering"
+    },
+    {
+        "id": "sciencedirect-iscience",
+        "journal": "iScience",
+        "url": "https://www.sciencedirect.com/science/article/pii/S2589004225003530",
+        "title": "The pivotal role of open source knowledge transfer to achieve universal energy access",
+        "bodySelector": "#body, .article-body",
+        "minimumBodyCharacters": 3000
+    },
+    {
+        "id": "sciencedirect-education",
+        "journal": "Computers and Education: Artificial Intelligence",
+        "url": "https://www.sciencedirect.com/science/article/pii/S2666920X25000402",
+        "title": "Examining the effect of artificial intelligence in relation to students’ academic achievement: A meta-analysis",
+        "bodySelector": "#body, .article-body",
+        "minimumBodyCharacters": 3000
+    },
+    {
+        "id": "sciencedirect-libraries",
+        "journal": "The Journal of Academic Librarianship",
+        "url": "https://www.sciencedirect.com/science/article/pii/S0099133325000503",
+        "title": "Charting open science landscapes: A systematized review of US academic libraries’ engagement in open research practices",
+        "bodySelector": "#body, .article-body",
+        "minimumBodyCharacters": 3000
+    }
+]

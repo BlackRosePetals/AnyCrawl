@@ -4,5 +4,6 @@
         "noEmit": true,
         "types": ["node", "jest"]
     },
-    "include": ["./**/*.ts"]
+    "include": ["./**/*.ts"],
+    "exclude": [".build"]
 }

@@ -12,6 +12,11 @@ describe("CloakBrowser option adaptation", () => {
         expect(adapted.geoip).toBe(true);
         expect(adapted.args).toEqual(["--fingerprint=123"]);
     });
+    test.each(["playwright", "puppeteer"] as const)("preserves explicit native switches for %s", (engine) => {
+        const args = ["--fingerprint-storage-quota=5000", "--fingerprint-noise=false", "--fingerprint-webrtc-ip=203.0.113.1"];
+        expect(toCloakBrowserOptions({ args, geoip: false, humanize: false, headless: true }, engine))
+            .toMatchObject({ args, geoip: false, humanize: false, headless: true });
+    });
     test("keeps wrapper flags separate from native launch and context fields", () => {
         const env = { TEST_MARKER: "present" };
         const options = toCloakBrowserOptions(

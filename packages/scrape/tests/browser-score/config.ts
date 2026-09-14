@@ -10,9 +10,40 @@ export const VARIANTS = [
     "injected-fixed",
 ] as const;
 export type Variant = (typeof VARIANTS)[number];
+export const EXPERIMENTS = [
+    "baseline",
+    "storage-quota",
+    "no-canvas-flag",
+    "no-gpu-flag",
+    "noise-off",
+] as const;
+export type Experiment = (typeof EXPERIMENTS)[number];
+export function experimentArgs(args: string[], experiment: Experiment, quotaMb = 5000): string[] {
+    if (experiment === "storage-quota")
+        return [
+            ...args.filter((arg) => !arg.startsWith("--fingerprint-storage-quota=")),
+            `--fingerprint-storage-quota=${quotaMb}`,
+        ];
+    if (experiment === "no-canvas-flag" || experiment === "no-gpu-flag") {
+        const flag =
+            experiment === "no-canvas-flag" ? "--disable-accelerated-2d-canvas" : "--disable-gpu";
+        if (!args.includes(flag))
+            throw new Error(`Cannot run ${experiment}: selected variant does not provide ${flag}`);
+        return args.filter((arg) => arg !== flag);
+    }
+    if (experiment === "noise-off")
+        return [
+            ...args.filter((arg) => !arg.startsWith("--fingerprint-noise=")),
+            "--fingerprint-noise=false",
+        ];
+    return [...args];
+}
 export interface Config {
     sites: Site[];
     variants: Variant[];
+    experiments: Experiment[];
+    storageQuotaMb: number;
+    diagnostics: boolean;
     rounds: number;
     seed: number;
     headless: boolean;
@@ -31,6 +62,9 @@ export function parseConfig(args: string[], env: NodeJS.ProcessEnv): Config {
         options: {
             sites: { type: "string", default: Object.keys(STANDARDS).join(",") },
             variants: { type: "string", default: "native,injected-fixed" },
+            experiments: { type: "string", default: "baseline" },
+            "storage-quota-mb": { type: "string", default: "5000" },
+            diagnostics: { type: "boolean", default: false },
             rounds: { type: "string", default: "1" },
             seed: { type: "string", default: "42069" },
             network: { type: "string", default: "configured" },
@@ -140,6 +174,9 @@ export function parseConfig(args: string[], env: NodeJS.ProcessEnv): Config {
     return {
         sites,
         variants: list(values.variants!, VARIANTS, "variants"),
+        experiments: list(values.experiments!, EXPERIMENTS, "experiments"),
+        storageQuotaMb: number(values["storage-quota-mb"], "storage-quota-mb", 1, 1000000, true)!,
+        diagnostics: values.diagnostics!,
         rounds,
         seed,
         network: values.network,
@@ -175,7 +212,7 @@ export const identifier = (value: string): string =>
 export function redactText(text: string, proxyUrl?: string, extraSecrets: string[] = []): string {
     let result = text
         .replace(/([a-z][a-z0-9+.-]*:\/\/)[^\s/]*@/gi, "$1[redacted]@")
-        .replace(/([?&]token=)[^&\s]+/g, "$1[redacted]");
+        .replace(/([?&](?:token|__cf_chl_[^=&#\s]+)=)[^&\s"'<>]+/g, "$1[redacted]");
     const secrets = [...extraSecrets];
     if (proxyUrl) {
         result = result.split(proxyUrl).join("[configured proxy]");
