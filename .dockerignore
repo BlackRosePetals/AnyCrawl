@@ -21,6 +21,7 @@ build
 **/*.spec.*
 packages/scrape/tests/browser-score
 output/playwright/browser-score
+output/playwright/journal-access
 
 # Environment files
 .env*

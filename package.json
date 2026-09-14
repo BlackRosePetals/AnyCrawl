@@ -35,7 +35,8 @@
         "check:phantom-deps": "dotenv-run -- knip --include=unlisted",
         "create:test:template": "cd packages/template-client && pnpm create:test:template",
         "templates:generate": "tsx templates/generate-sql.ts --dialect both --validate",
-        "templates:apply": "dotenv-run -- tsx templates/apply-all-sql.ts"
+        "templates:apply": "dotenv-run -- tsx templates/apply-all-sql.ts",
+        "test:browser-journals": "pnpm --filter @anycrawl/scrape test:browser-journals"
     },
     "devDependencies": {
         "@anycrawl/js-sdk": "^0.0.1",

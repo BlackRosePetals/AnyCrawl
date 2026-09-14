@@ -1,0 +1,13 @@
+{
+    "extends": "./tsconfig.json",
+    "compilerOptions": {
+        "noEmit": false,
+        "rootDir": ".",
+        "outDir": "./.build"
+    },
+    "include": [
+        "journals.ts",
+        "config.ts",
+        "scoring.ts"
+    ]
+}

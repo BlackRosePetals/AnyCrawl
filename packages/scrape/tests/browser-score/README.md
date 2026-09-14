@@ -73,6 +73,28 @@ pnpm test:browser-score --sites browserscan,creepjs,sannysoft --variants native 
 
 默认变体为 native,injected-fixed。默认 1 轮，seed=42069，后续轮次递增 seed；1–10 轮，严格串行。原始生成指纹随报告保存，不挑选有利样本。
 
+### CloakBrowser 单变量实验
+
+`--experiments` 默认只选 `baseline`。各实验使用独立浏览器，保留每站点 context 隔离；偶数轮反转实验顺序，减少固定先后顺序的影响。
+
+| 实验 | 与所选变体的差别 |
+| --- | --- |
+| `baseline` | 原始参数 |
+| `storage-quota` | 增加原生存储配额参数；`--storage-quota-mb` 默认 5000 |
+| `no-canvas-flag` | 移除 `--disable-accelerated-2d-canvas` |
+| `no-gpu-flag` | 移除 `--disable-gpu`，主要用于包含该参数的 Linux 应用配置 |
+| `noise-off` | 增加 `--fingerprint-noise=false`，同时影响多个指纹表面 |
+
+```bash
+pnpm test:browser-score --variants application --sites browserscan,creepjs,sannysoft --experiments baseline,storage-quota --rounds 3 --headed --diagnostics
+```
+
+`--diagnostics` 在检测站评分采集结束后，再采集主页面、Worker 和 iframe 的存储配额、legacy quota、WebGL1/2 错误/参数/绘制像素及身份信息。缺失或被页面限制的 API 明确记录不可用，不合成为得分，也不增加出口探测。它只创建临时图形上下文和 iframe/Worker，结束后释放。
+
+诊断执行异常单独记录并使退出码为 2，已经取得的评分仍保留。选择移除某个 flag 的实验时，变体必须实际包含该 flag，否则明确报错，避免把未改变的配置当成有效对照。
+
+传入参数不代表实际二进制支持。判断配额是否生效应查看实际返回字节数，不能仅因 CLI 接受 5000 就宣称已提高配额。实验不修改生产默认配置，也不使用持久用户 profile。
+
 ### 采样窗口与退出码
 
 默认导航超时 45 秒、导航后结果窗口 45 秒，可分别设置 `--navigation-timeout-ms` 和 `--result-timeout-ms`。结果需结构完整且稳定至少 3 秒；BrowserScan 至少观察 20 秒、CreepJS 5 秒、Sannysoft 3 秒。reCAPTCHA 等待后端验证结果，不额外要求稳定窗口。
@@ -91,7 +113,7 @@ pnpm test:browser-score --sites browserscan,creepjs,sannysoft --variants native 
 
 默认目录：仓库根目录 `output/playwright/browser-score/<时间戳>-<随机ID>/`。`--output DIRECTORY` 可改变父目录；每次仍创建新的子目录，避免覆盖历史结果。
 
-- `report.json` / `report.md`：版本、运行条件、指标、阈值失败、可用性和错误。
+- `report.json` / `report.md`：版本、运行条件、指标、阈值失败、可用性和错误。schema v2 增加实验、attempt ID、源码/二进制 hash、各组启动参数及分阶段耗时；评分耗时仍不代表业务性能。
 - 每次尝试的 `.json` / `.txt` / `.png`：原始观察、页面文字与截图，失败时尽可能保存现场。
 - `fingerprint-rN.json`：该轮注入使用的具体指纹。
 - 结构化日志移除代理凭据、已知 license key 和 reCAPTCHA query token；截图及页面原文仍可能含检测站显示的公网 IP/地理位置，因此产物目录默认不入 Git。
@@ -102,6 +124,20 @@ BrowserScan 报出的出口会被汇总检查。`exitChanged=true` 表示配置�
 [历史基线](baselines/2026-09-07-macos-chromium145.json) 保留上一次真实测试的摘要与限制。它仅用于解释已有问题，不能作为所有 OS、IP 和版本的自动通过阈值；大体积截图仍保留在原实验产物中。
 
 应用修改后的观察见 [应用基线](baselines/2026-09-07-application-native.json)。
+
+## 期刊文章与 ScienceDirect 验证
+
+`journals.ts` 使用实际 AnyCrawl Playwright EngineFactory，包括启动适配、资源拦截、挑战处理和正文提取，使用隔离 context 和临时抓取队列，不启动 API/调度服务。命令先用生产 `tsc` 构建应用和测试，再用 Node 执行；不要直接用 tsx 运行这组集成测试，转译辅助函数可能影响浏览器内的参数提取。`journal-targets.json` 是跨出版平台的公开文章样本，`sciencedirect-targets.json` 聚焦 ScienceDirect 的四个期刊。通过条件为标题匹配、指定正文区域达到最小长度且主文档成功返回；200 状态码本身不算通过。
+
+```bash
+pnpm test:browser-journals --targets tests/browser-score/sciencedirect-targets.json
+```
+
+默认使用当前代理配置的第 0 个条目、现有 headless 设置、每次请求零重试，保存全部失败。可用 `--rounds`、`--timeout-ms`、`--proxy-env`、`--proxy-index` 显式调整；`--baseline-source` 指定已保留并构建的上一实现 `EngineFactory.js`，可交错比较，不自动创建或切换源码快照。`--targets` 的相对路径以 scrape 包目录为基准，也可传绝对路径。
+
+额外实验必须显式选择 `--profile full-resources` 或 `--profile existing-solver`。前者在测试中关闭资源拦截；后者同时使用现有 2captcha 配置和 humanize on，仍保持相同显式代理 URL。这些是组合实验，不修改生产默认值，也不能用来单独归因某一个选项。缺少配置时明确失败。
+
+报告位于 `output/playwright/journal-access/`，包含状态、正文断言、主文档响应、挑战状态、耗时和现场。总耗时含启动/采集/清理；存在时另列内容取得耗时与产物保存耗时。少量样本用于筛查，不能估算高可用性 SLA。
 
 ## 离线验证与维护
 

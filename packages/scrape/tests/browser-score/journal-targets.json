@@ -1,0 +1,37 @@
+[
+    {
+        "id": "nature",
+        "url": "https://www.nature.com/articles/s41598-025-94085-z",
+        "title": "Subset selection for domain adaptive pre-training of language model",
+        "bodySelector": ".c-article-body, #body",
+        "minimumBodyCharacters": 3000
+    },
+    {
+        "id": "mdpi",
+        "url": "https://www.mdpi.com/2673-2688/6/7/159",
+        "title": "Local AI Governance: Addressing Model Safety and Policy Challenges Posed by Decentralized AI",
+        "bodySelector": ".html-body, #html-body",
+        "minimumBodyCharacters": 3000
+    },
+    {
+        "id": "sciencedirect",
+        "url": "https://www.sciencedirect.com/science/article/pii/S2590123025013283",
+        "title": "Global renewable energy transition: A multidisciplinary analysis of emerging computing technologies, socio-economic impacts, and policy imperatives",
+        "bodySelector": "#body, .article-body",
+        "minimumBodyCharacters": 3000
+    },
+    {
+        "id": "wiley",
+        "url": "https://agupubs.onlinelibrary.wiley.com/doi/10.1029/2025JH000797",
+        "title": "The First 18 Months of JGR: MLC",
+        "bodySelector": ".article__body, .article-section__content, .article__sections",
+        "minimumBodyCharacters": 1500
+    },
+    {
+        "id": "oxford",
+        "url": "https://academic.oup.com/nsr/article/12/5/nwaf050/8029900",
+        "title": "Generative artificial intelligence: a historical perspective",
+        "bodySelector": ".widget-ArticleFulltext, .article-body",
+        "minimumBodyCharacters": 3000
+    }
+]
