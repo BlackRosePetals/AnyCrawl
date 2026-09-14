@@ -1,6 +1,6 @@
 import { describe, expect, test } from "@jest/globals";
 import { parseObservation, thresholdFailures, exitCode } from "../scoring.js";
-import { parseConfig, redactText } from "../config.js";
+import { parseConfig, redactText, experimentArgs } from "../config.js";
 
 // Minimal excerpts of the observed English page formats. IPs are documentation addresses.
 const browserscan = `203.0.113.10
@@ -153,6 +153,17 @@ describe("Browser-score observations", () => {
 });
 
 describe("Browser-score configuration and redaction", () => {
+    test("selects single-variable experiments without mutating baseline arguments", () => {
+        const args = ["--fingerprint=42", "--disable-gpu", "--disable-accelerated-2d-canvas"];
+        expect(experimentArgs(args, "storage-quota")).toEqual([...args, "--fingerprint-storage-quota=5000"]);
+        expect(experimentArgs(args, "no-canvas-flag")).toEqual(args.slice(0, 2));
+        expect(experimentArgs(args, "no-gpu-flag")).toEqual([args[0], args[2]]);
+        expect(experimentArgs(args, "noise-off")).toEqual([...args, "--fingerprint-noise=false"]);
+        expect(args).toHaveLength(3);
+        expect(() => experimentArgs([], "no-gpu-flag")).toThrow("does not provide");
+        expect(parseConfig(["--network", "direct", "--experiments", "baseline,storage-quota", "--diagnostics"], {}))
+            .toMatchObject({ experiments: ["baseline", "storage-quota"], diagnostics: true, storageQuotaMb: 5000 });
+    });
     test("requires a proxy or explicit direct mode", () => {
         expect(() => parseConfig([], {})).toThrow("Proxy entry missing");
         expect(parseConfig(["--network", "direct"], {}).network).toBe("direct");
@@ -175,6 +186,10 @@ describe("Browser-score configuration and redaction", () => {
         ["--sites", "sannysoft", "--max-stealth", "0"],
         ["--headed", "--headless"],
         ["--timezone", "not/a/timezone"],
+        ["--experiments", "unknown"],
+        ["--experiments", "baseline,baseline"],
+        ["--storage-quota-mb", "0"],
+        ["--storage-quota-mb", "1.5"],
     ])("rejects invalid options: %j", (...args) => {
         expect(() => parseConfig(["--network", "direct", ...args], {})).toThrow();
     });
@@ -195,6 +210,7 @@ describe("Browser-score configuration and redaction", () => {
         expect(JSON.parse(JSON.stringify({ error: clean })).error).toBe(clean);
     });
     test("also strips userinfo from unknown URLs and reCAPTCHA query tokens", () => {
+        expect(redactText("https://host.test/paper?__cf_chl_rt_tk=secret&x=1")).toBe("https://host.test/paper?__cf_chl_rt_tk=[redacted]&x=1");
         expect(redactText("https://name:password@host.test/path?token=abc123")).toBe(
             "https://[redacted]@host.test/path?token=[redacted]"
         );

@@ -89,8 +89,11 @@ CLAUDE.md
 
 # Live browser scoring artifacts (the harness and historical baselines are tracked)
 /output/playwright/browser-score/
+/output/playwright/journal-access/
+/packages/scrape/tests/browser-score/.build/
 
 # Local planning notes are kept under the already ignored docs/ directory.
 # Also exclude their old locations if recreated.
 /packages/scrape/tests/browser-score/NEXT_STEPS.md
 /packages/scrape/tests/browser-score/IMPROVEMENT_PLAN.md
+output/

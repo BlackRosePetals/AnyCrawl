@@ -1,16 +1,20 @@
 import fs from "node:fs/promises";
-import { constants } from "node:fs";
+import { constants, createReadStream } from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHash } from "node:crypto";
+import { collectRuntimeDiagnostics } from "./diagnostics.js";
 import type { Browser, BrowserContext, Page } from "playwright";
 import {
     parseConfig,
     identifier,
     redactText,
     VARIANTS,
+    EXPERIMENTS,
+    experimentArgs,
+    type Experiment,
     type Config,
     type Variant,
 } from "./config.js";
@@ -43,6 +47,12 @@ async function readVerification(response: { json(): Promise<unknown> }): Promise
 interface RecordResult {
     round: number;
     variant: Variant;
+    experiment: Experiment;
+    attemptId: string;
+    timings: Record<string, number>;
+    diagnostics?: unknown;
+    diagnosticError?: string;
+    pageErrors: string[];
     site: Site;
     status: "completed" | "unavailable" | "error";
     failures: string[];
@@ -167,10 +177,12 @@ export async function collect(
             );
         }
     });
+    const navigationStartedAt = Date.now();
     await page.goto(standard.url, {
         waitUntil: "domcontentloaded",
         timeout: config.navigationTimeoutMs,
     });
+    result.timings.navigationMs = Date.now() - navigationStartedAt;
     const start = Date.now();
     let stableSince = start;
     let previous = "";
@@ -205,6 +217,7 @@ export async function collect(
             : observation.reason;
         await sleep(Math.min(1000, Math.max(1, config.resultTimeoutMs - (Date.now() - start))));
     }
+    result.timings.observationMs = Date.now() - start;
     await Promise.all(responses);
     if (result.status === "completed") delete result.error;
     return text;
@@ -223,15 +236,20 @@ function markdown(report: {
         "",
         "These metrics are separate detector observations, not a combined human probability or Cloudflare success rate.",
         "",
-        "| Round | Variant | Site | Status | Metrics | Threshold failures |",
-        "| --- | --- | --- | --- | --- | --- |",
+        "| Round | Variant | Experiment | Site | Status | Metrics | Threshold failures |",
+        "| --- | --- | --- | --- | --- | --- | --- |",
     ];
     for (const row of report.records)
         lines.push(
-            `| ${row.round} | ${row.variant} | ${row.site} | ${row.status} | ${row.observation ? JSON.stringify(row.observation.metrics) : "unavailable"} | ${row.failures.join("; ") || "—"} |`
+            `| ${row.round} | ${row.variant} | ${row.experiment} | ${row.site} | ${row.status} | ${row.observation ? JSON.stringify(row.observation.metrics) : "unavailable"} | ${row.failures.join("; ") || "—"} |`
         );
     if (report.fatalError)
         lines.push("", `Setup/runtime error: ${report.fatalError.replace(/\n/g, " ")}`);
+    for (const row of report.records.filter((row) => row.diagnosticError))
+        lines.push(
+            "",
+            `Diagnostics incomplete (${row.attemptId}): ${row.diagnosticError!.replace(/\n/g, " ")}`
+        );
     lines.push(
         "",
         "See report.json and the per-attempt JSON/text/screenshots for evidence and errors.",
@@ -272,7 +290,9 @@ export async function run(config: Config): Promise<{ code: number; directory: st
     };
     const { proxyUrl: _privateProxy, ...publicConfig } = config;
     const metadata: Record<string, unknown> = {
-        schemaVersion: 1,
+        schemaVersion: 2,
+        runId: path.basename(directory),
+        contextMode: "isolated",
         type: "browser-score",
         startedAt: new Date().toISOString(),
         platform: process.platform,
@@ -292,6 +312,11 @@ export async function run(config: Config): Promise<{ code: number; directory: st
         exitCode: 2,
     };
     let browser: Browser | undefined;
+    const sha256 = async (file: string) => {
+        const hash = createHash("sha256");
+        for await (const chunk of createReadStream(file)) hash.update(chunk);
+        return hash.digest("hex");
+    };
     try {
         const cloak = await import("cloakbrowser");
         const binary = cloak.binaryInfo(process.env.CLOAKBROWSER_VERSION);
@@ -323,6 +348,25 @@ export async function run(config: Config): Promise<{ code: number; directory: st
             );
         process.env.CLOAKBROWSER_AUTO_UPDATE = "false";
         process.env.CLOAKBROWSER_BINARY_PATH = binaryPath;
+        const sourceFiles = [
+            "packages/scrape/tests/browser-score/run.ts",
+            "packages/scrape/tests/browser-score/config.ts",
+            "packages/scrape/tests/browser-score/scoring.ts",
+            "packages/scrape/tests/browser-score/diagnostics.ts",
+            "packages/scrape/src/core/BrowserLaunchOptions.ts",
+            "packages/scrape/src/core/CloakBrowserOptions.ts",
+            "packages/scrape/src/core/CloakBrowserLauncher.ts",
+            "packages/scrape/src/core/EngineConfigurator.ts",
+            "packages/scrape/src/challenges/cloudflare/CloudflareChallengeHandler.ts",
+            "packages/scrape/src/challenges/cloudflare/CloudflareDetection.ts",
+            "packages/libs/src/config.ts",
+            "pnpm-lock.yaml",
+        ];
+        metadata.sourceHashes = Object.fromEntries(
+            await Promise.all(
+                sourceFiles.map(async (file) => [file, await sha256(path.join(repository, file))])
+            )
+        );
         metadata.versions = {
             cloakbrowser: packageVersion("cloakbrowser"),
             playwright: packageVersion("playwright"),
@@ -330,6 +374,7 @@ export async function run(config: Config): Promise<{ code: number; directory: st
         };
         metadata.binary = {
             path: binaryPath,
+            sha256: await sha256(binaryPath),
             cachedVersion: override ? (process.env.CLOAKBROWSER_VERSION ?? null) : binary.version,
             tier: override ? "explicit-path" : binary.tier,
         };
@@ -357,139 +402,193 @@ export async function run(config: Config): Promise<{ code: number; directory: st
                 browsers: [{ name: "chrome", minVersion: 120 }],
             });
             if (fingerprint) await writeJson(`fingerprint-r${round}.json`, fingerprint);
+            // Reverse candidate order every other round to reduce fixed-order bias.
+            const experiments =
+                round % 2 === 1 ? config.experiments : [...config.experiments].reverse();
             for (const variant of config.variants) {
-                let launchOptions: Record<string, any> = {
-                    headless: config.headless,
-                    proxy: config.proxyUrl,
-                    timezone: config.timezone,
-                    locale: config.locale,
-                    browserVersion: launchVersion,
-                    args: [`--fingerprint=${config.seed + round - 1}`],
-                    launchOptions: { timeout: config.navigationTimeoutMs },
-                };
-                if (variant === "application") {
-                    const { getBrowserLaunchOptions, shouldResolveBrowserGeoip } = await import(
-                        "../../src/core/BrowserLaunchOptions.js"
-                    );
-                    const { getCloakBrowserPlaywrightLauncher } = await import(
-                        "../../src/core/CloakBrowserLauncher.js"
-                    );
-                    const defaults = getBrowserLaunchOptions();
-                    launchOptions = {
-                        ...defaults,
-                        ...launchOptions,
-                        timezone: config.timezone ?? defaults.timezone,
-                        locale: config.locale ?? defaults.locale,
-                        args: [...(defaults.args as string[]), ...launchOptions.args],
+                for (const experiment of experiments) {
+                    let launchOptions: Record<string, any> = {
+                        headless: config.headless,
+                        proxy: config.proxyUrl,
+                        timezone: config.timezone,
+                        locale: config.locale,
+                        browserVersion: launchVersion,
+                        args: [`--fingerprint=${config.seed + round - 1}`],
+                        launchOptions: { timeout: config.navigationTimeoutMs },
                     };
-                    launchOptions.geoip = shouldResolveBrowserGeoip(
-                        launchOptions,
-                        Boolean(config.proxyUrl)
-                    );
-                    browser = (await (
-                        await getCloakBrowserPlaywrightLauncher()
-                    ).launch(launchOptions)) as Browser;
-                    metadata.application = {
-                        geoip: launchOptions.geoip,
-                        timezone: launchOptions.timezone ?? null,
-                        locale: launchOptions.locale ?? null,
-                    };
-                } else browser = await cloak.launch(launchOptions);
-                metadata.browserVersion = browser.version();
-                for (const site of config.sites) {
-                    const stem = `r${round}-${variant}-${site}`;
-                    const result: RecordResult = {
+                    const launchStartedAt = Date.now();
+                    if (variant === "application") {
+                        const { getBrowserLaunchOptions, shouldResolveBrowserGeoip } = await import(
+                            "../../src/core/BrowserLaunchOptions.js"
+                        );
+                        const { getCloakBrowserPlaywrightLauncher } = await import(
+                            "../../src/core/CloakBrowserLauncher.js"
+                        );
+                        const defaults = getBrowserLaunchOptions();
+                        launchOptions = {
+                            ...defaults,
+                            ...launchOptions,
+                            timezone: config.timezone ?? defaults.timezone,
+                            locale: config.locale ?? defaults.locale,
+                            args: [...(defaults.args as string[]), ...launchOptions.args],
+                        };
+                        launchOptions.geoip = shouldResolveBrowserGeoip(
+                            launchOptions,
+                            Boolean(config.proxyUrl)
+                        );
+                        launchOptions.args = experimentArgs(
+                            launchOptions.args,
+                            experiment,
+                            config.storageQuotaMb
+                        );
+                        browser = (await (
+                            await getCloakBrowserPlaywrightLauncher()
+                        ).launch(launchOptions)) as Browser;
+                        metadata.application = {
+                            geoip: launchOptions.geoip,
+                            timezone: launchOptions.timezone ?? null,
+                            locale: launchOptions.locale ?? null,
+                        };
+                    } else {
+                        launchOptions.args = experimentArgs(
+                            launchOptions.args,
+                            experiment,
+                            config.storageQuotaMb
+                        );
+                        browser = await cloak.launch(launchOptions);
+                    }
+                    const launchMs = Date.now() - launchStartedAt;
+                    const launches = (metadata.launches ??= []) as unknown[];
+                    launches.push({
                         round,
                         variant,
-                        site,
-                        status: "unavailable",
-                        failures: [],
-                        artifacts: {},
-                        failedRequests: [],
-                    };
-                    report.records.push(result);
-                    const started = Date.now();
-                    let context: BrowserContext | undefined;
-                    let page: Page | undefined;
-                    let text = "";
-                    try {
-                        const inject = variant === "inject-only" || variant === "injected-fixed";
-                        context = await browser.newContext({
-                            ...(variant === "application"
-                                ? {}
-                                : cloak.buildContextOptions({
-                                      headless: config.headless,
-                                      browserVersion: launchVersion,
-                                  })),
-                            ...(inject && fingerprint
-                                ? {
-                                      userAgent: fingerprint.fingerprint.navigator.userAgent,
-                                      viewport: {
-                                          width: fingerprint.fingerprint.screen.width,
-                                          height: fingerprint.fingerprint.screen.height,
-                                      },
-                                  }
-                                : {}),
-                            ignoreHTTPSErrors: process.env.ANYCRAWL_IGNORE_SSL_ERROR === "true",
-                        });
-                        page = await context.newPage();
-                        if (inject && fingerprint && fingerprintTools)
-                            await fingerprintTools.injector.attachFingerprintToPlaywright(
-                                context,
-                                fingerprint
-                            );
-                        if (variant === "fixed-only" || variant === "injected-fixed")
-                            await page.setViewportSize({ width: 1920, height: 1080 });
-                        text = await collect(page, site, result, config);
-                        result.identity = await identity(page);
-                    } catch (error) {
-                        result.status = "error";
-                        result.error = redact(String(error));
-                    } finally {
-                        if (page && !page.isClosed()) {
-                            try {
-                                if (!text)
-                                    text = await page.locator("body").innerText({ timeout: 3000 });
-                                await fs.writeFile(
-                                    path.join(directory, `${stem}.txt`),
-                                    redact(text)
-                                );
-                                result.artifacts.text = `${stem}.txt`;
-                                await page.screenshot({
-                                    path: path.join(directory, `${stem}.png`),
-                                    fullPage: true,
-                                    timeout: 15000,
-                                });
-                                result.artifacts.screenshot = `${stem}.png`;
-                            } catch (error) {
-                                result.status = "error";
-                                result.error = [
-                                    result.error,
-                                    `Artifact capture: ${redact(String(error))}`,
-                                ]
-                                    .filter(Boolean)
-                                    .join("\n");
-                            }
-                        }
-                        result.elapsedMs = Date.now() - started;
-                        result.artifacts.record = `${stem}.json`;
-                        await writeJson(`${stem}.json`, result);
-                        await writeJson("report.json", report);
-                        await context?.close();
-                    }
-                    console.log(
-                        JSON.stringify({
+                        experiment,
+                        launchMs,
+                        args: launchOptions.args,
+                        headless: launchOptions.headless,
+                        geoip: launchOptions.geoip ?? false,
+                        fingerprintFixtureHash: fingerprint
+                            ? identifier(JSON.stringify(fingerprint))
+                            : null,
+                    });
+                    metadata.browserVersion = browser.version();
+                    for (const site of config.sites) {
+                        const stem = `r${round}-${variant}-${experiment}-${site}`;
+                        const result: RecordResult = {
                             round,
                             variant,
+                            experiment,
+                            attemptId: randomUUID(),
+                            timings: { launchMs },
+                            pageErrors: [],
                             site,
-                            status: result.status,
-                            metrics: result.observation?.metrics ?? null,
-                            failures: result.failures,
-                        })
-                    );
+                            status: "unavailable",
+                            failures: [],
+                            artifacts: {},
+                            failedRequests: [],
+                        };
+                        report.records.push(result);
+                        const started = Date.now();
+                        let context: BrowserContext | undefined;
+                        let page: Page | undefined;
+                        let text = "";
+                        try {
+                            const inject =
+                                variant === "inject-only" || variant === "injected-fixed";
+                            context = await browser.newContext({
+                                ...(variant === "application"
+                                    ? {}
+                                    : cloak.buildContextOptions({
+                                          headless: config.headless,
+                                          browserVersion: launchVersion,
+                                      })),
+                                ...(inject && fingerprint
+                                    ? {
+                                          userAgent: fingerprint.fingerprint.navigator.userAgent,
+                                          viewport: {
+                                              width: fingerprint.fingerprint.screen.width,
+                                              height: fingerprint.fingerprint.screen.height,
+                                          },
+                                      }
+                                    : {}),
+                                ignoreHTTPSErrors: process.env.ANYCRAWL_IGNORE_SSL_ERROR === "true",
+                            });
+                            page = await context.newPage();
+                            result.timings.contextMs = Date.now() - started;
+                            page.on("pageerror", (error) => {
+                                if (result.pageErrors.length < 50)
+                                    result.pageErrors.push(redact(error.message));
+                            });
+                            if (inject && fingerprint && fingerprintTools)
+                                await fingerprintTools.injector.attachFingerprintToPlaywright(
+                                    context,
+                                    fingerprint
+                                );
+                            if (variant === "fixed-only" || variant === "injected-fixed")
+                                await page.setViewportSize({ width: 1920, height: 1080 });
+                            text = await collect(page, site, result, config);
+                            result.identity = await identity(page);
+                            if (config.diagnostics) {
+                                const diagnosticsStartedAt = Date.now();
+                                try {
+                                    result.diagnostics = await collectRuntimeDiagnostics(page);
+                                } catch (error) {
+                                    result.diagnosticError = redact(String(error));
+                                }
+                                result.timings.diagnosticsMs = Date.now() - diagnosticsStartedAt;
+                            }
+                        } catch (error) {
+                            result.status = "error";
+                            result.error = redact(String(error));
+                        } finally {
+                            if (page && !page.isClosed()) {
+                                try {
+                                    if (!text)
+                                        text = await page
+                                            .locator("body")
+                                            .innerText({ timeout: 3000 });
+                                    await fs.writeFile(
+                                        path.join(directory, `${stem}.txt`),
+                                        redact(text)
+                                    );
+                                    result.artifacts.text = `${stem}.txt`;
+                                    await page.screenshot({
+                                        path: path.join(directory, `${stem}.png`),
+                                        fullPage: true,
+                                        timeout: 15000,
+                                    });
+                                    result.artifacts.screenshot = `${stem}.png`;
+                                } catch (error) {
+                                    result.status = "error";
+                                    result.error = [
+                                        result.error,
+                                        `Artifact capture: ${redact(String(error))}`,
+                                    ]
+                                        .filter(Boolean)
+                                        .join("\n");
+                                }
+                            }
+                            result.elapsedMs = Date.now() - started;
+                            result.artifacts.record = `${stem}.json`;
+                            await writeJson(`${stem}.json`, result);
+                            await writeJson("report.json", report);
+                            await context?.close();
+                        }
+                        console.log(
+                            JSON.stringify({
+                                round,
+                                variant,
+                                experiment,
+                                site,
+                                status: result.status,
+                                metrics: result.observation?.metrics ?? null,
+                                failures: result.failures,
+                            })
+                        );
+                    }
+                    await browser.close();
+                    browser = undefined;
                 }
-                await browser.close();
-                browser = undefined;
             }
         }
         const observedIps = report.records
@@ -513,6 +612,7 @@ export async function run(config: Config): Promise<{ code: number; directory: st
         }
         metadata.finishedAt = new Date().toISOString();
         report.exitCode = exitCode(report.records, report.fatalError);
+        if (report.records.some((row) => row.diagnosticError)) report.exitCode = 2;
         await writeJson("report.json", report);
         await fs.writeFile(path.join(directory, "report.md"), redact(markdown(report)));
     }
@@ -526,7 +626,7 @@ async function main(): Promise<void> {
         for (const [id, standard] of Object.entries(STANDARDS))
             console.log(`${id}: ${standard.description}\n  ${standard.url}`);
         console.log(
-            `\nOptions:\n  --sites ${Object.keys(STANDARDS).join(",")}\n  --variants ${VARIANTS.join(",")}\n  --rounds 1 --seed 42069\n  --network configured|direct --proxy-env ANYCRAWL_PROXY_URL --proxy-index 0\n  --headed | --headless\n  --timezone IANA_ZONE --locale en-US --output DIRECTORY\n  --navigation-timeout-ms 45000 --result-timeout-ms 45000\n  --min-authenticity 85 --max-stealth 0 --min-recaptcha 0.5 --require-webdriver\n\nThresholds are optional and apply to every selected variant. No combined human score.\nExit: 0=collected and configured thresholds passed, 1=threshold failure, 2=incomplete/error.`
+            `\nOptions:\n  --sites ${Object.keys(STANDARDS).join(",")}\n  --variants ${VARIANTS.join(",")}\n  --experiments ${EXPERIMENTS.join(",")} --storage-quota-mb 5000 --diagnostics\n  --rounds 1 --seed 42069\n  --network configured|direct --proxy-env ANYCRAWL_PROXY_URL --proxy-index 0\n  --headed | --headless\n  --timezone IANA_ZONE --locale en-US --output DIRECTORY\n  --navigation-timeout-ms 45000 --result-timeout-ms 45000\n  --min-authenticity 85 --max-stealth 0 --min-recaptcha 0.5 --require-webdriver\n\nThresholds are optional and apply to every selected variant. No combined human score.\nExit: 0=collected and configured thresholds passed, 1=threshold failure, 2=incomplete/error.`
         );
     } else {
         try {
