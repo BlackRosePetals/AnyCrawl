@@ -1,5 +1,5 @@
 import { extractUrlsFromCheerio } from "crawlee";
-import { log } from "@anycrawl/libs";
+import { log, type CrawlSchema } from "@anycrawl/libs";
 import { QueueManager } from "../managers/Queue.js";
 import { resolveAutoEngine } from "./autoEngine.js";
 import { completedJob, failedJob, finalizeCrawlDatasetRun } from "@anycrawl/db";
@@ -16,10 +16,11 @@ export async function runAutoCrawl(
     payload: any,
 ): Promise<void> {
     const seedUrl: string = payload.url;
-    const opts = payload.crawl_options || {};
-    const limit: number = opts.limit || 10;
-    const maxDepth: number = opts.max_depth || 10;
-    const strategy: string = opts.strategy || "same-domain";
+    const opts = payload.options as CrawlSchema["options"];
+    const scrapeOptions = opts.scrape_options;
+    const limit = opts.limit;
+    const maxDepth = opts.max_depth;
+    const strategy = opts.strategy;
     const includePaths: string[] = opts.include_paths || [];
     const excludePaths: string[] = opts.exclude_paths || [];
 
@@ -46,7 +47,7 @@ export async function runAutoCrawl(
                         payload.engine === "auto"
                             ? await resolveAutoEngine(
                                   page.url,
-                                  payload.options?.proxy,
+                                  scrapeOptions.proxy,
                               )
                             : payload.engine;
                     const queueName = `scrape-${engine}`;
@@ -57,15 +58,14 @@ export async function runAutoCrawl(
                             url: page.url,
                             engine,
                             options: {
-                                ...payload.options,
-                                formats: [
-                                    ...new Set([
-                                        ...(payload.options?.formats || [
-                                            "markdown",
-                                        ]),
-                                        "links",
-                                    ]),
-                                ],
+                                ...opts,
+                                // The coordinator owns link expansion. Keep crawl metadata
+                                // for Dataset/path handling, but each Worker fetches one page.
+                                limit: 1,
+                                scrape_options: {
+                                    ...scrapeOptions,
+                                    formats: [...new Set([...scrapeOptions.formats, "links"])],
+                                },
                             },
                             parentId: jobId,
                             type: "crawl",
@@ -76,7 +76,7 @@ export async function runAutoCrawl(
                         await QueueManager.getInstance().waitJobDone(
                             queueName,
                             scrapeId,
-                            payload.options?.timeout || 60000,
+                            scrapeOptions.timeout,
                         );
                     if (!result || result.status === "failed") {
                         failed++;
@@ -171,7 +171,8 @@ function matchesStrategy(
     try {
         const seedHost = new URL(seedUrl).hostname;
         const urlHost = new URL(url).hostname;
-        if (strategy === "same-domain") return urlHost === seedHost;
+        if (strategy === "same-domain" || strategy === "same-hostname")
+            return urlHost === seedHost;
         if (strategy === "same-origin")
             return new URL(url).origin === new URL(seedUrl).origin;
         return true;
