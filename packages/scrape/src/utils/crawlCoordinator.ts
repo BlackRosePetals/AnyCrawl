@@ -59,16 +59,14 @@ export async function runAutoCrawl(
                             engine,
                             options: {
                                 ...opts,
-                                // The coordinator owns link expansion. Keep crawl metadata
-                                // for Dataset/path handling, but each Worker fetches one page.
-                                limit: 1,
-                                scrape_options: {
-                                    ...scrapeOptions,
-                                    formats: [...new Set([...scrapeOptions.formats, "links"])],
-                                },
+                                // scrape-* Workers consume flat options, regardless of the
+                                // producer's type. Preserve existing crawl metadata as well.
+                                ...scrapeOptions,
+                                template_id: opts.template_id,
+                                formats: [...new Set([...scrapeOptions.formats, "links"])],
                             },
                             parentId: jobId,
-                            type: "crawl",
+                            type: "scrape",
                             queueName,
                         });
 

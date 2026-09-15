@@ -68,15 +68,15 @@ describe('auto crawl consumes the production schema contract', () => {
         expect(urls()).toEqual(expected);
     });
 
-    it('passes nested page options and keeps child crawl metadata without child fan-out', async () => {
-        const p = payload({ limit: 2, scrape_paths: [`${seed}keep/**`], scrape_options: { proxy: 'http://proxy.example:8080', formats: ['html'], timeout: 7000, max_age: 0, include_tags: ['main'] } });
+    it('flattens page options for the scrape queue and preserves existing metadata', async () => {
+        const p = payload({ limit: 2, template_id: 'crawl-template', scrape_paths: [`${seed}keep/**`], scrape_options: { proxy: 'http://proxy.example:8080', formats: ['html'], timeout: 7000, max_age: 0, include_tags: ['main'] } });
         const dataset = { datasetId: 'dataset', scopeType: 'crawl', mapping: {}, owner: {} };
         Object.assign(p.options, { dataset });
         const original = JSON.stringify(p);
         await runAutoCrawl('parent', p);
         const child = queued[0].data;
-        expect(child).toMatchObject({ parentId: 'parent', type: 'crawl', options: { limit: 1, dataset, scrape_paths: [`${seed}keep/**`] } });
-        expect(child.options.scrape_options).toMatchObject({ proxy: 'http://proxy.example:8080', formats: ['html', 'links'], timeout: 7000, max_age: 0, include_tags: ['main'] });
+        expect(child).toMatchObject({ parentId: 'parent', type: 'scrape', options: { limit: 2, template_id: 'crawl-template', dataset, scrape_paths: [`${seed}keep/**`] } });
+        expect(child.options).toMatchObject({ proxy: 'http://proxy.example:8080', formats: ['html', 'links'], timeout: 7000, max_age: 0, include_tags: ['main'] });
         expect(resolveEngine).toHaveBeenCalledWith(seed, 'http://proxy.example:8080');
         expect(wait).toHaveBeenCalledWith('scrape-cheerio', '0', 7000);
         expect(finalizeDataset).toHaveBeenCalledWith({ datasetId: 'dataset', producerType: 'crawl', producerId: 'parent' });
