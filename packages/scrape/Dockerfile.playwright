@@ -21,6 +21,7 @@ RUN npx playwright install-deps
 FROM base AS build
 WORKDIR /usr/src/app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
+COPY patches/ ./patches/
 COPY packages/libs/package.json ./packages/libs/package.json
 COPY packages/scrape/package.json ./packages/scrape/package.json
 COPY packages/db/package.json ./packages/db/package.json
@@ -39,6 +40,7 @@ WORKDIR /usr/src/app/packages/scrape
 # 1. copy packages and root
 COPY --from=build /usr/src/app/package.json /usr/src/app/package.json
 COPY --from=build /usr/src/app/pnpm-lock.yaml /usr/src/app/pnpm-lock.yaml
+COPY --from=build /usr/src/app/patches ./patches
 COPY --from=build /usr/src/app/pnpm-workspace.yaml /usr/src/app/pnpm-workspace.yaml
 COPY --from=build /usr/src/app/packages/eslint-config/package.json /usr/src/app/packages/eslint-config/package.json
 COPY --from=build /usr/src/app/packages/search/package.json /usr/src/app/packages/search/package.json

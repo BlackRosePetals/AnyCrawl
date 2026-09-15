@@ -21,6 +21,7 @@ WORKDIR /usr/src/app
 
 # Copy package files for dependency installation
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml turbo.json ./
+COPY patches/ ./patches/
 COPY apps/api/package.json ./apps/api/
 COPY packages/ ./packages/
 
@@ -35,6 +36,7 @@ FROM base AS migration
 WORKDIR /usr/src/app
 # Copy package manifests for workspace resolution
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml turbo.json ./
+COPY patches/ ./patches/
 # Bring over full packages tree to satisfy workspace links for @anycrawl/db
 COPY --from=build /usr/src/app/packages ./packages
 # Install devDependencies for @anycrawl/db only (provides drizzle-kit)
@@ -46,6 +48,7 @@ WORKDIR /usr/src/app
 # Copy built files and pruned prod dependencies
 COPY --from=build /usr/src/app/apps/api /usr/src/app/apps/api
 COPY --from=build /usr/src/app/package.json /usr/src/app/pnpm-lock.yaml /usr/src/app/pnpm-workspace.yaml ./
+COPY --from=build /usr/src/app/patches ./patches
 COPY --from=build /usr/src/app/packages ./packages
 COPY --from=build /usr/src/app/node_modules ./node_modules
 

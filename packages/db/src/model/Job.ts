@@ -1,4 +1,4 @@
-import { asc } from "drizzle-orm";
+import { asc, and, notInArray } from "drizzle-orm";
 import { getDB, schemas, eq, STATUS, sql } from "../index.js";
 import { JOB_RESULT_STATUS, JobResultStatus } from "../map.js";
 import { log } from "@anycrawl/libs/log";
@@ -19,6 +19,10 @@ export interface CreateJobParams {
 }
 
 export class Job {
+    private static openJob(jobId: string) {
+        return and(eq(schemas.jobs.jobId, jobId), notInArray(schemas.jobs.status, [STATUS.COMPLETED, STATUS.FAILED, STATUS.CANCELLED]));
+    }
+
     // Job type to expiration duration (ms)
     private static readonly JOB_TYPE_EXPIRE_MAP: Record<string, number> = {
         crawl: 3 * 60 * 60 * 1000, // 3 hours
@@ -103,7 +107,8 @@ export class Job {
         const db = await getDB();
         const job = await Job.get(job_id);
         if (job) {
-            await db.update(schemas.jobs).set({ status: STATUS.CANCELLED }).where(eq(schemas.jobs.jobId, job_id));
+            const changed = await db.update(schemas.jobs).set({ status: STATUS.CANCELLED, updatedAt: new Date() }).where(Job.openJob(job_id)).returning({ jobId: schemas.jobs.jobId });
+            if (!changed.length) return null;
             try {
                 log.info(`[DB][Job] Cancelled job_id=${job_id} status=${STATUS.CANCELLED}`);
             } catch { }
@@ -123,11 +128,10 @@ export class Job {
      */
     public static async updateStatus(job_id: string, status: string, isSuccess: boolean | null = null) {
         const db = await getDB();
-        if (isSuccess !== null) {
-            await db.update(schemas.jobs).set({ status: status, isSuccess: isSuccess }).where(eq(schemas.jobs.jobId, job_id));
-        } else {
-            await db.update(schemas.jobs).set({ status: status }).where(eq(schemas.jobs.jobId, job_id));
-        }
+        const changed = await db.update(schemas.jobs).set({
+            status, updatedAt: new Date(), ...(isSuccess !== null ? { isSuccess } : {}),
+        }).where(Job.openJob(job_id)).returning({ jobId: schemas.jobs.jobId });
+        if (!changed.length) return;
         try {
             log.info(`[DB][Job] Updated status job_id=${job_id} status=${status}${isSuccess !== null ? ` isSuccess=${isSuccess}` : ""}`);
         } catch { }
@@ -144,14 +148,15 @@ export class Job {
     ) {
         const db = await getDB();
 
-        await db.update(schemas.jobs).set({
+        const changed = await db.update(schemas.jobs).set({
             status: STATUS.COMPLETED,
             isSuccess: isSuccess,
             ...(counts?.total !== undefined ? { total: counts.total } : {}),
             ...(counts?.completed !== undefined ? { completed: counts.completed } : {}),
             ...(counts?.failed !== undefined ? { failed: counts.failed } : {}),
             updatedAt: new Date(),
-        }).where(eq(schemas.jobs.jobId, jobId));
+        }).where(Job.openJob(jobId)).returning({ jobId: schemas.jobs.jobId });
+        if (!changed.length) return;
 
         try {
             const countsInfo = `total=${counts?.total ?? "-"} completed=${counts?.completed ?? "-"} failed=${counts?.failed ?? "-"}`;
@@ -179,7 +184,7 @@ export class Job {
     ) {
         const db = await getDB();
 
-        await db.update(schemas.jobs).set({
+        const changed = await db.update(schemas.jobs).set({
             status: STATUS.FAILED,
             isSuccess: isSuccess,
             errorMessage: errorMessage,
@@ -187,7 +192,8 @@ export class Job {
             ...(counts?.completed !== undefined ? { completed: counts.completed } : {}),
             ...(counts?.failed !== undefined ? { failed: counts.failed } : {}),
             updatedAt: new Date(),
-        }).where(eq(schemas.jobs.jobId, jobId));
+        }).where(Job.openJob(jobId)).returning({ jobId: schemas.jobs.jobId });
+        if (!changed.length) return;
 
         try {
             const countsInfo = `total=${counts?.total ?? "-"} completed=${counts?.completed ?? "-"} failed=${counts?.failed ?? "-"}`;

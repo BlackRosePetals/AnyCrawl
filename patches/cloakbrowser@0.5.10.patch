@@ -1,0 +1,44 @@
+diff --git a/dist/geoip.js b/dist/geoip.js
+index a4c4af960ebeb8fddc199a7800758d1007d6a2a4..9c00bbed420d5bb41892d895b8e9d862894fa654 100644
+--- a/dist/geoip.js
++++ b/dist/geoip.js
+@@ -47,7 +47,7 @@ export const COUNTRY_LOCALE_MAP = {
+     IQ: "ar-IQ", JO: "ar-JO", LB: "ar-LB", KW: "ar-KW", QA: "ar-QA",
+     OM: "ar-OM", BH: "ar-BH",
+     NG: "en-NG", KE: "en-KE", MA: "fr-MA", DZ: "ar-DZ", TN: "ar-TN",
+-    GH: "en-GH",
++    GH: "en-GH", ML: "fr-ML",
+     AM: "hy-AM", AZ: "az-AZ", UZ: "uz-UZ", KG: "ky-KG", TJ: "tg-TJ",
+     TM: "tk-TM",
+     ME: "sr-ME", XK: "sq-XK", LI: "de-LI", MC: "fr-MC", AD: "ca-AD",
+@@ -106,7 +106,7 @@ export async function resolveProxyGeo(proxyUrl) {
+         const timezone = result?.location?.time_zone ?? null;
+         const countryCode = result?.country?.iso_code ?? null;
+         const locale = countryCode ? (COUNTRY_LOCALE_MAP[countryCode] ?? null) : null;
+-        return { timezone, locale, exitIp: ip };
++        return { timezone, locale, exitIp: ip, countryCode };
+     }
+     catch (error) {
+         const detail = error instanceof Error ? error.message : String(error);
+@@ -437,7 +437,7 @@ export async function maybeResolveGeoip(options) {
+         const exitIp = await resolveExitIp(proxyUrl, timeoutMs) ?? undefined;
+         return { timezone, locale, exitIp };
+     }
+-    const { timezone: geoTz, locale: geoLocale, exitIp: geoExitIp } = await resolveProxyGeo(proxyUrl);
++    const { timezone: geoTz, locale: geoLocale, exitIp: geoExitIp, countryCode } = await resolveProxyGeo(proxyUrl);
+     const resolvedTimezone = timezone ?? geoTz ?? undefined;
+     const resolvedLocale = locale ?? geoLocale ?? undefined;
+     const missing = [
+@@ -445,7 +445,11 @@ export async function maybeResolveGeoip(options) {
+         resolvedLocale ? null : "locale",
+     ].filter((value) => value !== null);
+     if (missing.length > 0) {
+-        throw new Error(`GeoIP resolution failed: could not determine ${missing.join(" and ")}`);
++        const error = new Error(`GeoIP resolution failed: could not determine ${missing.join(" and ")}`);
++        error.code = "CLOAK_GEOIP_METADATA_MISSING";
++        error.countryCode = countryCode;
++        error.missing = missing;
++        throw error;
+     }
+     return {
+         timezone: resolvedTimezone,

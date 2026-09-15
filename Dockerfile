@@ -32,6 +32,7 @@ WORKDIR /usr/src/app
 
 # Copy package files
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml turbo.json ./
+COPY patches/ ./patches/
 COPY apps/api/package.json ./apps/api/
 COPY packages/libs/package.json ./packages/libs/
 COPY packages/scrape/package.json ./packages/scrape/
@@ -69,6 +70,7 @@ WORKDIR /usr/src/app
 
 # Copy built files and dependencies from build stage
 COPY --from=build /usr/src/app/pnpm-lock.yaml ./
+COPY --from=build /usr/src/app/patches ./patches
 COPY --from=build /usr/src/app/pnpm-workspace.yaml ./
 COPY --from=build /usr/src/app/package.json ./
 COPY --from=build /usr/src/app/packages ./packages
@@ -98,6 +100,7 @@ RUN if [ "$ENABLE_PUPPETEER" = "true" ] && [ "$TARGETARCH" = "amd64" ]; then \
 
 # Copy built files and necessary package files
 COPY --from=build /usr/src/app/pnpm-lock.yaml ./
+COPY --from=build /usr/src/app/patches ./patches
 COPY --from=build /usr/src/app/pnpm-workspace.yaml ./
 COPY --from=build /usr/src/app/package.json ./
 

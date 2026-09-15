@@ -1,3 +1,4 @@
+import { ResilientPuppeteerCrawler } from "./ResilientBrowserCrawler.js";
 import { BaseEngine, BaseEngineType } from "./Base.js";
 import { config } from "@anycrawl/libs";
 import { StickyPuppeteerCrawler } from "./StickyBrowserCrawler.js";
@@ -51,7 +52,7 @@ export class PuppeteerEngine extends BaseEngine {
 
         this.engine = config.proxy.stickyEnabled
             ? new StickyPuppeteerCrawler(enhancedOptions)
-            : new PuppeteerCrawler(enhancedOptions);
+            : new ResilientPuppeteerCrawler(enhancedOptions);
         this.isInitialized = true;
     }
 

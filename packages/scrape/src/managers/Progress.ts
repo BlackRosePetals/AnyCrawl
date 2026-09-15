@@ -152,6 +152,17 @@ export class ProgressManager {
             .exec();
     }
 
+    /** A producer retry must not count the same deterministic crawl seed twice. */
+    async ensureSeedEnqueued(jobId: string): Promise<void> {
+        await this.redis.eval(`
+            if redis.call('HSETNX', KEYS[1], '_seed_enqueued', '1') == 1 then
+                redis.call('HSETNX', KEYS[1], ARGV[1], ARGV[3])
+                redis.call('HINCRBY', KEYS[1], ARGV[2], 1)
+            end
+            return 1
+        `, 1, this.key(jobId), REDIS_FIELDS.STARTED_AT, REDIS_FIELDS.ENQUEUED, new Date().toISOString());
+    }
+
     async markPageDone(
         jobId: string,
         wasSuccess: boolean

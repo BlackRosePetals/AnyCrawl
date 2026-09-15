@@ -2,6 +2,7 @@ import {
     PlaywrightCrawler, PuppeteerCrawler,
     type PlaywrightCrawlingContext, type PuppeteerCrawlingContext,
 } from "crawlee";
+import { ResilientPlaywrightCrawler, ResilientPuppeteerCrawler } from "./ResilientBrowserCrawler.js";
 import { config, getBaseProxyUrls, getStealthProxyUrls } from "@anycrawl/libs";
 import { StickyBrowserManager } from "../core/StickyBrowserManager.js";
 import { validateStickyProxyTemplate } from "../core/StickyProxyContext.js";
@@ -17,7 +18,7 @@ function createManager(options: any): StickyBrowserManager {
     return new StickyBrowserManager(ttl);
 }
 
-export class StickyPlaywrightCrawler extends PlaywrightCrawler {
+export class StickyPlaywrightCrawler extends ResilientPlaywrightCrawler {
     readonly stickyManager: StickyBrowserManager;
     constructor(options: any) {
         const manager = createManager(options);
@@ -36,7 +37,7 @@ export class StickyPlaywrightCrawler extends PlaywrightCrawler {
     }
 }
 
-export class StickyPuppeteerCrawler extends PuppeteerCrawler {
+export class StickyPuppeteerCrawler extends ResilientPuppeteerCrawler {
     readonly stickyManager: StickyBrowserManager;
     constructor(options: any) {
         const manager = createManager(options);

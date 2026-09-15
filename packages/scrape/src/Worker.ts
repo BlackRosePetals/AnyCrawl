@@ -226,9 +226,14 @@ async function runJob(job: Job) {
     // Use queue job ID for status updates, but pass parentId for result recording
     const currentJobId = job.id as string;
     const parentId = job.data.parentId || currentJobId; // Use provided parentId for result recording
-    const uniqueKey = await engineQueueManager.addRequest(engineType, job.data.url,
+    const uniqueKey = engineQueueManager.getRequestKey(engineType, job.data.url, { jobId: currentJobId });
+    // Publish processing before handoff: a fast consumer must not have its
+    // completed status overwritten by a delayed producer update.
+    await job.updateData({ ...job.data, uniqueKey, status: "processing" });
+    await engineQueueManager.addRequest(engineType, job.data.url,
         {
             jobId: currentJobId, // Use queue job ID for status updates
+            _anycrawlJobDeadlineAt: job.data._anycrawlJobDeadlineAt,
             parentId: parentId, // Use parent job ID for result recording
             engine: engineType,
             queueName: job.data.queueName,
@@ -248,13 +253,8 @@ async function runJob(job: Job) {
     );
     // Seed enqueued counter for crawl jobs (the initial URL itself)
     if (jobType === JOB_TYPE_CRAWL) {
-        await ProgressManager.getInstance().incrementEnqueued(currentJobId, 1);
+        await ProgressManager.getInstance().ensureSeedEnqueued(currentJobId);
     }
-    job.updateData({
-        ...job.data,
-        uniqueKey,
-        status: "processing",
-    });
 }
 
 // Initialize the application
@@ -321,7 +321,7 @@ async function runJob(job: Job) {
                             await markExecutionStarted(job.data.scheduled_execution_id);
                         }
 
-                        job.updateData({
+                        await job.updateData({
                             ...job.data,
                             type: JOB_TYPE_SCRAPE,
                         });
@@ -361,7 +361,7 @@ async function runJob(job: Job) {
                             await markExecutionStarted(job.data.scheduled_execution_id);
                         }
 
-                        job.updateData({
+                        await job.updateData({
                             ...job.data,
                             type: JOB_TYPE_CRAWL,
                         });

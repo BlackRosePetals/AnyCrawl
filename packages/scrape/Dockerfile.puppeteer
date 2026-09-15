@@ -23,6 +23,7 @@ FROM base AS build
 WORKDIR /usr/src/app
 RUN chown myuser:myuser /usr/src/app
 COPY --chown=myuser:myuser package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
+COPY --chown=myuser:myuser patches/ ./patches/
 COPY --chown=myuser:myuser packages/libs/package.json ./packages/libs/package.json
 COPY --chown=myuser:myuser packages/scrape/package.json ./packages/scrape/package.json
 COPY --chown=myuser:myuser packages/db/package.json ./packages/db/package.json
@@ -44,6 +45,7 @@ RUN chown -R myuser:myuser /usr/src/app
 # 1. copy packages and root
 COPY --chown=myuser:myuser --from=build /usr/src/app/package.json /usr/src/app/package.json
 COPY --chown=myuser:myuser --from=build /usr/src/app/pnpm-lock.yaml /usr/src/app/pnpm-lock.yaml
+COPY --chown=myuser:myuser --from=build /usr/src/app/patches ./patches
 COPY --chown=myuser:myuser --from=build /usr/src/app/pnpm-workspace.yaml /usr/src/app/pnpm-workspace.yaml
 COPY --chown=myuser:myuser --from=build /usr/src/app/packages/eslint-config/package.json /usr/src/app/packages/eslint-config/package.json
 COPY --chown=myuser:myuser --from=build /usr/src/app/packages/search/package.json /usr/src/app/packages/search/package.json

@@ -1,3 +1,5 @@
+import { mayStartBrowserTask } from "../core/BrowserTaskGuard.js";
+import { browserFailureDetails } from "../core/BrowserFailure.js";
 import { reserveCloudflareReload } from '../challenges/cloudflare/CloudflareReload.js';
 import { Deadline } from '../utils/Deadline.js';
 import { freshBrowserRequestData } from "../core/BrowserRecoveryPolicy.js";
@@ -16,7 +18,7 @@ import {
     ResponseStatus,
     CrawlerResponse
 } from "../types/crawler.js";
-import { insertJobResult, failedJob, completedJob, Billing, JOB_RESULT_STATUS, writeResultToDataset } from "@anycrawl/db";
+import { getJob, insertJobResult, failedJob, completedJob, Billing, JOB_RESULT_STATUS, writeResultToDataset } from "@anycrawl/db";
 import { ProgressManager } from "../managers/Progress.js";
 import { CacheManager } from "../managers/Cache.js";
 import { log, JOB_TYPE_CRAWL, JOB_TYPE_SCRAPE, CreditCalculator, resolveWaitUntil, appConfig, config, getBrowserRuntimeForCache } from "@anycrawl/libs";
@@ -1232,6 +1234,8 @@ export abstract class BaseEngine {
                 data = await enrichChallengePayload(data);
                 (context as any).__anycrawlAbortSignal?.throwIfAborted();
 
+                if (!await mayStartBrowserTask(context.request.userData, getJob)) return;
+
                 // Run custom handler if provided
                 if (customRequestHandler) {
                     await customRequestHandler(context);
@@ -1476,6 +1480,7 @@ export abstract class BaseEngine {
             }
             const { queueName, jobId } = context.request.userData;
 
+            if (!await mayStartBrowserTask(context.request.userData, getJob)) return;
             log.info(`[${queueName}] [${jobId}] Persisting result for ${context.request.url}`);
             (context as any).__anycrawlAbortSignal?.throwIfAborted();
             // store into job table
@@ -1666,7 +1671,7 @@ export abstract class BaseEngine {
             await this.engine.run();
             log.info(`[${queueName}] Crawler engine started successfully`);
         } catch (error) {
-            log.error(`[${queueName}] Error running crawler: ${error}`);
+            log.error(`[${queueName}] Error running crawler`, browserFailureDetails(error));
             throw error;
         }
     }
