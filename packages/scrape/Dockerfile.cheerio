@@ -31,7 +31,7 @@ WORKDIR /usr/src/app/packages/scrape
 # 1. copy packages and root
 COPY --from=build /usr/src/app/package.json /usr/src/app/package.json
 COPY --from=build /usr/src/app/pnpm-lock.yaml /usr/src/app/pnpm-lock.yaml
-COPY --from=build /usr/src/app/patches ./patches
+COPY --from=build /usr/src/app/patches /usr/src/app/patches
 COPY --from=build /usr/src/app/pnpm-workspace.yaml /usr/src/app/pnpm-workspace.yaml
 COPY --from=build /usr/src/app/packages/eslint-config/package.json /usr/src/app/packages/eslint-config/package.json
 COPY --from=build /usr/src/app/packages/search/package.json /usr/src/app/packages/search/package.json
