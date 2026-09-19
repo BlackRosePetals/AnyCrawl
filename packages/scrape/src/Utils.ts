@@ -121,6 +121,26 @@ export class Utils {
         return this.redisConnection;
     }
 
+    /**
+     * A fail-fast Redis connection, separate from the shared BullMQ one.
+     *
+     * The shared connection sets `maxRetriesPerRequest: null` because BullMQ
+     * requires it, which also makes ioredis queue commands until it reconnects
+     * instead of rejecting them. Callers that must degrade gracefully when Redis
+     * is down (rate limiters, gates) need commands to fail rather than hang.
+     */
+    public createFailFastRedisConnection(): IORedis.Redis {
+        const connection = new IORedis.default(process.env.ANYCRAWL_REDIS_URL!, {
+            maxRetriesPerRequest: 1,
+            enableOfflineQueue: false,
+            connectTimeout: 2000,
+        });
+        connection.on("error", (err: Error) => {
+            log.error(`[Redis] fail-fast connection error: ${err.message}`);
+        });
+        return connection;
+    }
+
     public async once(job: Job, options?: EngineOptions) {
         let queueName = `temporary_scrape_${job.id}`;
         const queue = await Utils.getInstance().getQueue(queueName);

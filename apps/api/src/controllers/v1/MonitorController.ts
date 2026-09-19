@@ -11,6 +11,9 @@ import {
     config,
     appConfig,
     getPlanLimits,
+    checkPlanFeatures,
+    cronIntervalMinutes,
+    type PlanLimits,
     resolveTrackMode,
     estimateTaskCredits,
     normalizePagination,
@@ -31,6 +34,7 @@ import {
     sql,
     getOwnedMonitor,
     listMonitorsByOwner,
+    countMonitorsByOwner,
     listSnapshotsByMonitor,
     getSnapshotForMonitor,
     listChangesByMonitor,
@@ -81,9 +85,16 @@ export class MonitorController {
             // self-hosted install can run any number of monitors at any frequency.
             if (appConfig.authEnabled && config.auth.planLimitsEnabled) {
                 const limits = getPlanLimits(req.auth?.subscriptionTier);
+                // Every target, not just the scheduled one: MAX_TARGETS is 50 and the
+                // others are still stored and will run once multi-target ships.
+                const violation = this.checkTargets(validated.targets, limits);
+                if (violation) {
+                    res.status(403).json({ success: false, error: violation.code, message: violation.message });
+                    return;
+                }
                 if (Number.isFinite(limits.monitors)) {
-                    const existing = await listMonitorsByOwner(db, owner);
-                    if (existing.length >= limits.monitors) {
+                    const existing = await countMonitorsByOwner(db, owner);
+                    if (existing >= limits.monitors) {
                         res.status(403).json({
                             success: false,
                             error: "Monitor limit reached",
@@ -93,10 +104,7 @@ export class MonitorController {
                         return;
                     }
                 }
-                const intervalMinutes = this.cronIntervalMinutes(
-                    validated.cron_expression,
-                    validated.timezone
-                );
+                const intervalMinutes = cronIntervalMinutes(validated.cron_expression);
                 if (intervalMinutes !== null && intervalMinutes < limits.minMonitorIntervalMinutes) {
                     res.status(403).json({
                         success: false,
@@ -276,6 +284,29 @@ export class MonitorController {
             const owner = this.getOwnerContext(req);
             const validated = updateMonitorSchema.parse(req.body);
             const db = await getDB();
+
+            // Same gates as create. Without these a monitor could be created within
+            // plan and then patched straight past it.
+            if (appConfig.authEnabled && config.auth.planLimitsEnabled) {
+                const limits = getPlanLimits(req.auth?.subscriptionTier);
+                const violation = this.checkTargets(validated.targets, limits);
+                if (violation) {
+                    res.status(403).json({ success: false, error: violation.code, message: violation.message });
+                    return;
+                }
+                if (validated.cron_expression) {
+                    const intervalMinutes = cronIntervalMinutes(validated.cron_expression);
+                    if (intervalMinutes !== null && intervalMinutes < limits.minMonitorIntervalMinutes) {
+                        res.status(403).json({
+                            success: false,
+                            error: "Check frequency too high for your plan",
+                            message: `Your plan allows a check every ${limits.minMonitorIntervalMinutes} minutes at most.`,
+                            min_interval_minutes: limits.minMonitorIntervalMinutes,
+                        });
+                        return;
+                    }
+                }
+            }
 
             const task = await updateOwnedMonitor(db, id!, owner, (monitor, backingTask) => prepareMonitorUpdate(monitor, backingTask, validated));
             if (!task) {
@@ -601,29 +632,13 @@ export class MonitorController {
         } });
     }
 
-    /**
-     * Shortest gap, in minutes, between consecutive runs of a cron expression.
-     * Sampled over several runs because a step expression (every 6 hours, say)
-     * is uneven across a day, and the plan limit is about the tightest gap.
-     */
-    private cronIntervalMinutes(cronExpression: string, timezone: string): number | null {
-        try {
-            const interval = CronExpressionParser.parse(cronExpression, {
-                tz: timezone || "UTC",
-                currentDate: new Date(),
-            });
-            let previous = interval.next().toDate().getTime();
-            let smallest = Number.POSITIVE_INFINITY;
-            for (let i = 0; i < 12; i++) {
-                const nextRun = interval.next().toDate().getTime();
-                smallest = Math.min(smallest, (nextRun - previous) / 60_000);
-                previous = nextRun;
-            }
-            return Number.isFinite(smallest) ? smallest : null;
-        } catch (error) {
-            log.error(`Failed to derive cron interval: ${error}`);
-            return null;
+    /** Check every target's scrape options against the plan. */
+    private checkTargets(targets: any[] | undefined, limits: PlanLimits) {
+        for (const target of targets ?? []) {
+            const violation = checkPlanFeatures(target?.options, limits);
+            if (violation) return violation;
         }
+        return null;
     }
 
     private calculateNextExecution(cronExpression: string, timezone: string): Date | null {

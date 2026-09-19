@@ -10,6 +10,7 @@ import { validateTemplateOnlyFields } from "../../utils/templateValidator.js";
 import { renderUrlTemplate } from "../../utils/urlTemplate.js";
 import { triggerWebhookEvent } from "../../utils/webhookHelper.js";
 import { randomUUID } from "crypto";
+import { rejectIfPlanForbids } from "../../utils/planGuard.js";
 
 export class ScrapeController {
     private resolveWaitTimeoutMs(jobPayload: any, hasExplicitTimeout: boolean): number {
@@ -122,6 +123,11 @@ export class ScrapeController {
                     currentUserId
                 );
                 defaultPrice = TemplateHandler.reslovePrice(requestData.template, "credits", "perCall");
+
+                // Re-check the plan on the MERGED options: a request carrying only
+                // template_id has no proxy of its own, so the route middleware saw
+                // nothing — the stored template supplies it server-side.
+                if (rejectIfPlanForbids(req, res, requestData)) return;
 
                 // Remove template field before schema validation (schemas use strict mode)
                 delete requestData.template;

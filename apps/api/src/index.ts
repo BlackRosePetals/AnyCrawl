@@ -9,7 +9,7 @@ import { logMiddleware } from "./middlewares/LogMiddleware.js";
 import { authMiddleware } from "./middlewares/AuthMiddleware.js";
 import { deductCreditsMiddleware } from "./middlewares/DeductCreditsMiddleware.js";
 import { log, ConsoleStream } from "@anycrawl/libs/log";
-import { appConfig } from "@anycrawl/libs";
+import { appConfig, config, validatePlanLimitsConfig } from "@anycrawl/libs";
 
 export const app: Application = express();
 const port = process.env.ANYCRAWL_API_PORT || 8080;
@@ -72,10 +72,15 @@ app.use(deductCreditsMiddleware);
 app.use("/v1", v1Router);
 
 // Start the server
+// Parse ANYCRAWL_PLAN_LIMITS_JSON here so a typo fails the process at boot,
+// instead of throwing from inside a middleware on every request.
+validatePlanLimitsConfig();
+
 const server = app.listen(Number(port), host, async () => {
     log.info(`✨ Server is running on port ${port}`);
     log.info(`🔐 Auth enabled: ${appConfig.authEnabled}`);
     log.info(`💳 Credits deduction enabled: ${appConfig.creditsEnabled}`);
+    log.info(`📦 Plan limits enforced: ${config.auth.planLimitsEnabled}`);
 });
 
 // Align server timeouts with typical proxy defaults to reduce unexpected resets

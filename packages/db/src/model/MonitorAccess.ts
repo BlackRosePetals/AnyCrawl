@@ -52,6 +52,13 @@ export async function listMonitorsByOwner(db: DBExecutor, owner: OwnerContext): 
     return rows.map(publicMonitor);
 }
 
+/** Count an owner's monitors. Used by the plan gate, which only needs the number. */
+export async function countMonitorsByOwner(db: DBExecutor, owner: OwnerContext): Promise<number> {
+    const rows = await db.select({ count: sql<number>`count(*)` }).from(schemas.monitors)
+        .where(ownerCondition(owner));
+    return Number(rows[0]?.count ?? 0);
+}
+
 export async function getMonitorByScheduledTask(db: DBExecutor, scheduledTaskUuid: string): Promise<any | null> {
     const rows = await db.select().from(schemas.monitors).where(eq(schemas.monitors.scheduledTaskUuid, scheduledTaskUuid)).limit(1);
     return rows[0] ?? null;

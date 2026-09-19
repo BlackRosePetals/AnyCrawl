@@ -33,7 +33,7 @@ const templateRunController = new TemplateRunController();
 // `concurrencyMiddleware` rides alongside it; it is a no-op unless plan limits are enabled.
 router.post("/scrape", checkCreditsMiddleware, planFeatureMiddleware, concurrencyMiddleware, controllerWrapper(scrapeController.handle));
 router.post("/search", checkCreditsMiddleware, planFeatureMiddleware, concurrencyMiddleware, controllerWrapper(searchController.handle));
-router.post("/map", checkCreditsMiddleware, planFeatureMiddleware, concurrencyMiddleware, controllerWrapper(mapController.map));
+router.post("/map", checkCreditsMiddleware, concurrencyMiddleware, controllerWrapper(mapController.map));
 
 // Per-template dedicated endpoints (dispatches to scrape/search/crawl by template type).
 // Exact sub-paths (/execute) take precedence over the bare `:templateRef` param in Express.
