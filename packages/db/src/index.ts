@@ -25,6 +25,7 @@ import {
     buildMonitorWhereClause as buildMonitorWhereClauseByOwner,
     getOwnedMonitor as getOwnedMonitorByOwner,
     listMonitorsByOwner as listMonitorsByOwnerOwner,
+    countMonitorsByOwner as countMonitorsByOwnerOwner,
     getMonitorByScheduledTask as getMonitorByScheduledTaskFn,
     getLatestSnapshot as getLatestSnapshotFn,
     listSnapshotsByMonitor as listSnapshotsByMonitorFn,
@@ -124,6 +125,7 @@ export const listWebhooksByOwner = listWebhooksByOwnerOwner;
 export const buildMonitorWhereClause = buildMonitorWhereClauseByOwner;
 export const getOwnedMonitor = getOwnedMonitorByOwner;
 export const listMonitorsByOwner = listMonitorsByOwnerOwner;
+export const countMonitorsByOwner = countMonitorsByOwnerOwner;
 export const getMonitorByScheduledTask = getMonitorByScheduledTaskFn;
 export const getLatestSnapshot = getLatestSnapshotFn;
 export const listSnapshotsByMonitor = listSnapshotsByMonitorFn;

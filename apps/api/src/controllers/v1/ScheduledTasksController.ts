@@ -26,6 +26,7 @@ import {
 } from "@anycrawl/db";
 import { randomUUID } from "crypto";
 import { serializeRecord, serializeRecords } from "../../utils/serializer.js";
+import { rejectIfPlanForbids } from "../../utils/planGuard.js";
 import {
     handleWebhookAssociations,
     removeWebhookAssociations,
@@ -55,6 +56,11 @@ export class ScheduledTasksController {
             const validatedData = createTaskSchema.parse(req.body);
             const owner = this.getOwnerContext(req);
             const { apiKeyId, userId } = owner;
+
+            // task_payload is a passthrough object, so it can carry any scrape
+            // option — including proxy. Gate it here: the payload is stored and
+            // replayed on a schedule, well after any request-time middleware.
+            if (rejectIfPlanForbids(req, res, validatedData.task_payload)) return;
 
             if (isScheduledTasksLimitEnabled() && apiKeyId) {
                 const db = await getDB();
@@ -261,6 +267,7 @@ export class ScheduledTasksController {
                 return;
             }
             if (this.rejectIfMonitorManaged(existing, res)) return;
+            if (rejectIfPlanForbids(req, res, (validatedData as any).task_payload)) return;
 
             const updateData: any = {
                 ...validatedData,

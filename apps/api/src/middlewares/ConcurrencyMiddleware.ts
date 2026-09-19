@@ -4,23 +4,43 @@ import { log } from "@anycrawl/libs/log";
 import { Utils } from "@anycrawl/scrape";
 
 /**
- * How long a held slot survives without being released. A worker that dies
- * mid-request would otherwise leak a slot forever; the TTL is refreshed on
- * every acquire, so it only expires once a key goes fully idle.
+ * A held slot must outlive the longest request a caller can ask for, or the key
+ * expires mid-request and the eventual release decrements someone else's slot.
+ * BaseSchema caps `timeout` at 600s; the margin covers queue and response time.
  */
-const SLOT_TTL_SECONDS = Number(process.env.ANYCRAWL_CONCURRENCY_SLOT_TTL_SECS ?? 300);
+const SLOT_TTL_SECONDS = Number(process.env.ANYCRAWL_CONCURRENCY_SLOT_TTL_SECS ?? 660);
 
-/** DECR that never drifts below zero if the counter expired under us. */
+/**
+ * DECR that never drifts below zero, and — unlike a bare SET — keeps the TTL so
+ * a clamped key still expires instead of lingering at zero forever.
+ */
 const RELEASE_SCRIPT = `
 local current = redis.call('DECR', KEYS[1])
 if current < 0 then
-  redis.call('SET', KEYS[1], 0)
+  redis.call('SET', KEYS[1], 0, 'KEEPTTL')
   return 0
 end
 return current
 `;
 
 const slotKey = (apiKeyId: string) => `anycrawl:concurrency:${apiKeyId}`;
+
+/**
+ * A connection of our own, NOT the shared BullMQ one.
+ *
+ * The shared connection uses `maxRetriesPerRequest: null`, which BullMQ requires
+ * but which makes ioredis queue commands until it reconnects rather than
+ * rejecting them. On that connection an outage would hang every gated request
+ * forever instead of failing fast — the opposite of what a limiter should do.
+ */
+let redisClient: ReturnType<typeof Utils.prototype.createFailFastRedisConnection> | undefined;
+
+function getRedis() {
+    if (!redisClient) {
+        redisClient = Utils.getInstance().createFailFastRedisConnection();
+    }
+    return redisClient;
+}
 
 /**
  * Per-plan concurrency gate.
@@ -50,33 +70,20 @@ export const concurrencyMiddleware = async (
     }
 
     const key = slotKey(apiKeyId);
-    let redis;
-    let held = 0;
+    const redis = getRedis();
+
+    let held: number;
     try {
-        redis = Utils.getInstance().getRedisConnection();
         held = await redis.incr(key);
-        await redis.expire(key, SLOT_TTL_SECONDS);
     } catch (error) {
         log.error(`[Concurrency] failed to acquire slot, allowing request: ${error}`);
         next();
         return;
     }
 
-    if (held > limit) {
-        try {
-            await redis.eval(RELEASE_SCRIPT, 1, key);
-        } catch (error) {
-            log.error(`[Concurrency] failed to release rejected slot: ${error}`);
-        }
-        res.status(429).json({
-            success: false,
-            error: "Concurrency limit reached",
-            message: `Your plan allows ${limit} concurrent request${limit === 1 ? "" : "s"}. Retry when an in-flight request finishes, or upgrade your plan.`,
-            limit,
-        });
-        return;
-    }
-
+    // Register the release BEFORE anything else that can throw. Previously the
+    // TTL call sat between acquire and release-registration, so a failure there
+    // leaked the slot permanently.
     let released = false;
     const release = () => {
         if (released) return;
@@ -88,6 +95,28 @@ export const concurrencyMiddleware = async (
     // 'close' covers client disconnects that never reach 'finish'.
     res.once("finish", release);
     res.once("close", release);
+
+    if (held > limit) {
+        // Release without touching the TTL. Refreshing it here would let a client
+        // that keeps retrying hold its own key alive forever, so a counter left
+        // high by a crash could never decay and the key would be locked out.
+        release();
+        res.status(429).json({
+            success: false,
+            error: "Concurrency limit reached",
+            message: `Your plan allows ${limit} concurrent request${limit === 1 ? "" : "s"}. Retry when an in-flight request finishes, or upgrade your plan.`,
+            limit,
+        });
+        return;
+    }
+
+    try {
+        await redis.expire(key, SLOT_TTL_SECONDS);
+    } catch (error) {
+        // The slot is held and will still be released on response; only the crash
+        // backstop is missing, so log and continue rather than failing the request.
+        log.error(`[Concurrency] failed to set slot TTL: ${error}`);
+    }
 
     next();
 };

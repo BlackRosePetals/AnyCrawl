@@ -13,6 +13,7 @@ import { mergeOptionsWithTemplate } from "../../utils/optionMerger.js";
 import { DomainValidator } from "@anycrawl/template-client";
 import { renderTextTemplate } from "../../utils/urlTemplate.js";
 import { triggerWebhookEvent } from "../../utils/webhookHelper.js";
+import { rejectIfPlanForbids } from "../../utils/planGuard.js";
 
 export class SearchController {
     private searchService: SearchService;
@@ -89,6 +90,11 @@ export class SearchController {
                     currentUserId
                 );
                 defaultPrice = TemplateHandler.reslovePrice(requestData.template, "credits", "perCall");
+
+                // Re-check the plan on the MERGED options: a request carrying only
+                // template_id has no proxy of its own, so the route middleware saw
+                // nothing — the stored template supplies it server-side.
+                if (rejectIfPlanForbids(req, res, requestData)) return;
                 const stMeta = requestData.template?.metadata as { charge_scrape_template_credits?: boolean } | undefined;
                 if (stMeta && typeof stMeta.charge_scrape_template_credits === "boolean") {
                     chargeScrapeTemplateCreditsForFollowup = stMeta.charge_scrape_template_credits;
