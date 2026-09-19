@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-09-20
+
+### Added
+
+- **Dataset `retention_policy` is now enforced as a read-time view.** `item_days` hides inactive items whose `last_seen_at` is older than the window, along with exports created before it. `change_days` hides changes and run warnings older than its window. Active items are never hidden. Nothing is deleted: shortening, lengthening or clearing the policy takes effect on the next read and is fully reversible. Dataset `item_count` in list/get/update responses reflects the visible items, and hidden exports return no download URL.
+- **Documentation for hosted plan limits.** Scrape, Search and Map document the `429 Concurrency limit reached` response. Scrape and Search also document the `403 stealth_proxy_not_allowed` response. Proxy Rules explains which proxy modes each plan allows, and Monitors has a new "Plan Limits (Hosted Service)" section. All of these are translated into every supported docs language.
+
+### Changed
+
+- Docs: scripts are excluded from the Next.js type-check, so the docs app builds on its own in container deployments.
+
+### Upgrade notes
+
+- No new database migrations. The visibility rules read the existing `datasets.retention_policy` column. Datasets without a policy behave exactly as before.
+- Redeploy the API **and** workers: dataset exports run in workers, which now apply the same visibility rules.
+- `ANYCRAWL_MONITOR_RETENTION_DAYS` is unrelated to dataset retention and still **deletes** old monitor history when set.
+- Server workspace packages move to 1.2.0. The independently versioned JS SDK remains at 0.0.9.
+
 ## [1.1.0] - 2026-09-19
 
 ### Added
