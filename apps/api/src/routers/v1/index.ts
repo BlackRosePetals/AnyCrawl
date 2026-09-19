@@ -12,6 +12,8 @@ import { TemplateEndpointController } from "../../controllers/v1/TemplateEndpoin
 import { TemplateRunController } from "../../controllers/v1/TemplateRunController.js";
 import { controllerWrapper } from "../../utils/AsyncHandler.js";
 import { checkCreditsMiddleware } from "../../middlewares/CheckCreditsMiddleware.js";
+import { concurrencyMiddleware } from "../../middlewares/ConcurrencyMiddleware.js";
+import { planFeatureMiddleware } from "../../middlewares/PlanFeatureMiddleware.js";
 
 const router: express.Router = Router();
 const scrapeController = new ScrapeController();
@@ -28,19 +30,20 @@ const templateRunController = new TemplateRunController();
 
 // Billing routes carry the credit gate at their definition (fail-closed). Any new billing route
 // MUST attach `checkCreditsMiddleware` here — there is no central allowlist to keep in sync.
-router.post("/scrape", checkCreditsMiddleware, controllerWrapper(scrapeController.handle));
-router.post("/search", checkCreditsMiddleware, controllerWrapper(searchController.handle));
-router.post("/map", checkCreditsMiddleware, controllerWrapper(mapController.map));
+// `concurrencyMiddleware` rides alongside it; it is a no-op unless plan limits are enabled.
+router.post("/scrape", checkCreditsMiddleware, planFeatureMiddleware, concurrencyMiddleware, controllerWrapper(scrapeController.handle));
+router.post("/search", checkCreditsMiddleware, planFeatureMiddleware, concurrencyMiddleware, controllerWrapper(searchController.handle));
+router.post("/map", checkCreditsMiddleware, planFeatureMiddleware, concurrencyMiddleware, controllerWrapper(mapController.map));
 
 // Per-template dedicated endpoints (dispatches to scrape/search/crawl by template type).
 // Exact sub-paths (/execute) take precedence over the bare `:templateRef` param in Express.
 router.get("/template/:templateRef", controllerWrapper(templateEndpointController.spec));
-router.post("/template/:templateRef/execute", checkCreditsMiddleware, controllerWrapper(templateEndpointController.execute));
+router.post("/template/:templateRef/execute", checkCreditsMiddleware, planFeatureMiddleware, concurrencyMiddleware, controllerWrapper(templateEndpointController.execute));
 
 // Template Run Core API (async run lifecycle nested under the template resource).
 // Only the create route is billable (fail-closed credit gate); the read/cancel
 // routes are NOT billed and MUST NOT carry checkCreditsMiddleware.
-router.post("/template/:templateRef/runs", checkCreditsMiddleware, controllerWrapper(templateRunController.create));
+router.post("/template/:templateRef/runs", checkCreditsMiddleware, planFeatureMiddleware, concurrencyMiddleware, controllerWrapper(templateRunController.create));
 router.get("/template/:templateRef/runs", controllerWrapper(templateRunController.list));
 router.get("/template/:templateRef/runs/:run_id", controllerWrapper(templateRunController.get));
 router.post("/template/:templateRef/runs/:run_id/cancel", controllerWrapper(templateRunController.cancel));
@@ -49,13 +52,13 @@ router.get("/template/:templateRef/runs/:run_id/warnings", controllerWrapper(tem
 router.get("/template/:templateRef/runs/:run_id/dataset", controllerWrapper(templateRunController.dataset));
 
 // Batch scrape routes (async job model)
-router.post("/batch/scrape", checkCreditsMiddleware, controllerWrapper(batchScrapeController.start));
+router.post("/batch/scrape", checkCreditsMiddleware, planFeatureMiddleware, concurrencyMiddleware, controllerWrapper(batchScrapeController.start));
 router.get("/batch/scrape/:jobId/status", controllerWrapper(batchScrapeController.status));
 router.get("/batch/scrape/:jobId", controllerWrapper(batchScrapeController.results));
 router.delete("/batch/scrape/:jobId", controllerWrapper(batchScrapeController.cancel));
 
 // Crawl routes
-router.post("/crawl", checkCreditsMiddleware, controllerWrapper(crawlController.start));
+router.post("/crawl", checkCreditsMiddleware, planFeatureMiddleware, concurrencyMiddleware, controllerWrapper(crawlController.start));
 router.get("/crawl/:jobId/status", controllerWrapper(crawlController.status));
 router.get("/crawl/:jobId", controllerWrapper(crawlController.results));
 router.delete("/crawl/:jobId", controllerWrapper(crawlController.cancel));

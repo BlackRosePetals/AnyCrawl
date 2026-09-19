@@ -50,6 +50,14 @@ export const config = {
         get creditsEnabled(): boolean {
             return process.env.ANYCRAWL_API_CREDITS_ENABLED === "true";
         },
+        /**
+         * Per-plan limits (concurrency, stealth proxy, AI formats, monitors).
+         * Off by default so self-hosted deployments stay unrestricted; the
+         * hosted service opts in with ANYCRAWL_API_PLAN_LIMITS_ENABLED=true.
+         */
+        get planLimitsEnabled(): boolean {
+            return process.env.ANYCRAWL_API_PLAN_LIMITS_ENABLED === "true";
+        },
     },
 
     api: {

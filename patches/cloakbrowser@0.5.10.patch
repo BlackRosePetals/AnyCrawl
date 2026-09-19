@@ -1,5 +1,5 @@
 diff --git a/dist/geoip.js b/dist/geoip.js
-index a4c4af960ebeb8fddc199a7800758d1007d6a2a4..9c00bbed420d5bb41892d895b8e9d862894fa654 100644
+index a4c4af960ebeb8fddc199a7800758d1007d6a2a4..ab6ad06ae336a7c23b5c41244d7fc45f3eb5c2ce 100644
 --- a/dist/geoip.js
 +++ b/dist/geoip.js
 @@ -47,7 +47,7 @@ export const COUNTRY_LOCALE_MAP = {
@@ -11,7 +11,21 @@ index a4c4af960ebeb8fddc199a7800758d1007d6a2a4..9c00bbed420d5bb41892d895b8e9d862
      AM: "hy-AM", AZ: "az-AZ", UZ: "uz-UZ", KG: "ky-KG", TJ: "tg-TJ",
      TM: "tk-TM",
      ME: "sr-ME", XK: "sq-XK", LI: "de-LI", MC: "fr-MC", AD: "ca-AD",
-@@ -106,7 +106,7 @@ export async function resolveProxyGeo(proxyUrl) {
+@@ -86,10 +86,9 @@ export async function resolveProxyGeo(proxyUrl) {
+     // when the DB is unavailable: the IP does not need the DB, and dropping it on
+     // a DB hiccup would let WebRTC fall back to the real IP behind a proxy while
+     // the connection shows the proxy IP — a real deanonymization.
+-    let ip = await resolveExitIp(proxyUrl, remainingMs(deadline));
+-    // Hostname fallback only applies to a proxy; no proxy → echo services only
+-    if (!ip && proxyUrl && !deadlineExpired(deadline))
+-        ip = await resolveProxyIp(proxyUrl);
++    // A proxy gateway address is not an observed egress IP. Metadata defaults
++    // require a successful exit lookup; connection/auth failures must stay errors.
++    const ip = await resolveExitIp(proxyUrl, remainingMs(deadline));
+     if (!ip || deadlineExpired(deadline)) {
+         if (deadlineExpired(deadline)) {
+             throw new Error(`GeoIP resolution timed out after ${timeoutMs / 1000}s`);
+@@ -106,7 +105,7 @@ export async function resolveProxyGeo(proxyUrl) {
          const timezone = result?.location?.time_zone ?? null;
          const countryCode = result?.country?.iso_code ?? null;
          const locale = countryCode ? (COUNTRY_LOCALE_MAP[countryCode] ?? null) : null;
@@ -20,7 +34,16 @@ index a4c4af960ebeb8fddc199a7800758d1007d6a2a4..9c00bbed420d5bb41892d895b8e9d862
      }
      catch (error) {
          const detail = error instanceof Error ? error.message : String(error);
-@@ -437,7 +437,7 @@ export async function maybeResolveGeoip(options) {
+@@ -419,6 +418,8 @@ function getFlagValue(args, ...keys) {
+  * --fingerprint-locale) counts as explicit: it is promoted to the option so geoip
+  * leaves it alone, mirroring the `timezone`/`locale` option override path.
+  */
++// Server-side metadata defaults; transport and database errors remain fatal.
++let geoipMetadataFallbackCount = 0;
+ export async function maybeResolveGeoip(options) {
+     if (!options.geoip)
+         return { timezone: options.timezone, locale: options.locale };
+@@ -437,7 +438,7 @@ export async function maybeResolveGeoip(options) {
          const exitIp = await resolveExitIp(proxyUrl, timeoutMs) ?? undefined;
          return { timezone, locale, exitIp };
      }
@@ -29,16 +52,28 @@ index a4c4af960ebeb8fddc199a7800758d1007d6a2a4..9c00bbed420d5bb41892d895b8e9d862
      const resolvedTimezone = timezone ?? geoTz ?? undefined;
      const resolvedLocale = locale ?? geoLocale ?? undefined;
      const missing = [
-@@ -445,7 +445,11 @@ export async function maybeResolveGeoip(options) {
+@@ -445,11 +446,21 @@ export async function maybeResolveGeoip(options) {
          resolvedLocale ? null : "locale",
      ].filter((value) => value !== null);
      if (missing.length > 0) {
 -        throw new Error(`GeoIP resolution failed: could not determine ${missing.join(" and ")}`);
-+        const error = new Error(`GeoIP resolution failed: could not determine ${missing.join(" and ")}`);
-+        error.code = "CLOAK_GEOIP_METADATA_MISSING";
-+        error.countryCode = countryCode;
-+        error.missing = missing;
-+        throw error;
++        console.warn(JSON.stringify({
++            event: "geoip_metadata_defaulted",
++            reason: "metadata_missing",
++            missing,
++            countryCode: /^[A-Z]{2}$/.test(countryCode) ? countryCode : null,
++            defaults: {
++                ...(resolvedTimezone ? {} : { timezone: "UTC" }),
++                ...(resolvedLocale ? {} : { locale: "en-US" }),
++            },
++            count: ++geoipMetadataFallbackCount,
++        }));
      }
      return {
-         timezone: resolvedTimezone,
+-        timezone: resolvedTimezone,
+-        locale: resolvedLocale,
++        timezone: resolvedTimezone || "UTC",
++        locale: resolvedLocale || "en-US",
+         exitIp: geoExitIp ?? undefined,
+     };
+ }
