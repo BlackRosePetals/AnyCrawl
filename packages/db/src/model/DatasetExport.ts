@@ -1,6 +1,12 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, gte, sql } from "drizzle-orm";
 import { schemas } from "../db/index.js";
-import { timestampKeyset, finalizeTimestampPage, type CursorKey, type PageResult } from "./Dataset.js";
+import {
+    timestampKeyset,
+    finalizeTimestampPage,
+    datasetVisibilityCutoffsById,
+    type CursorKey,
+    type PageResult,
+} from "./Dataset.js";
 
 type DBExecutor = any;
 
@@ -24,6 +30,16 @@ export interface DatasetExportUpdatePatch {
  * controller maps that to 404, never 403 — never leak cross-owner/cross-dataset
  * existence).
  */
+/**
+ * An export is a snapshot taken when it ran, so one older than the dataset's
+ * item cutoff can hold items the retention policy now hides. Hide the export
+ * with them — the file stays in storage, it just is not listed or downloadable.
+ */
+async function exportVisibilityCondition(db: DBExecutor, datasetId: string): Promise<any | null> {
+    const { itemCutoff } = await datasetVisibilityCutoffsById(db, datasetId);
+    return itemCutoff ? gte(schemas.datasetExports.createdAt, itemCutoff) : null;
+}
+
 export class DatasetExport {
     /** Create a queued export row for a dataset. */
     static async create(
@@ -51,6 +67,8 @@ export class DatasetExport {
         opts: { limit: number; cursor?: CursorKey | null }
     ): Promise<PageResult> {
         const conditions: any[] = [eq(schemas.datasetExports.datasetId, datasetId)];
+        const visible = await exportVisibilityCondition(db, datasetId);
+        if (visible) conditions.push(visible);
         if (opts.cursor) {
             conditions.push(
                 timestampKeyset(schemas.datasetExports.createdAt, schemas.datasetExports.uuid, "desc", opts.cursor)
@@ -68,15 +86,16 @@ export class DatasetExport {
 
     /** A single export scoped to its parent dataset. Null when not found / mismatched. */
     static async get(db: DBExecutor, datasetId: string, exportId: string): Promise<any | null> {
+        const conditions: any[] = [
+            eq(schemas.datasetExports.uuid, exportId),
+            eq(schemas.datasetExports.datasetId, datasetId),
+        ];
+        const visible = await exportVisibilityCondition(db, datasetId);
+        if (visible) conditions.push(visible);
         const rows = await db
             .select()
             .from(schemas.datasetExports)
-            .where(
-                and(
-                    eq(schemas.datasetExports.uuid, exportId),
-                    eq(schemas.datasetExports.datasetId, datasetId)
-                )
-            )
+            .where(and(...conditions))
             .limit(1);
         return rows[0] || null;
     }

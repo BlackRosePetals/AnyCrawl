@@ -22,6 +22,7 @@ import {
     type DatasetItemFilter,
     type DatasetItemSort,
     type DatasetPageResult,
+    withVisibleItemCounts,
 } from "@anycrawl/db";
 import { serializeRecord, serializeRecords } from "../../utils/serializer.js";
 import { encodeCursor, decodeCursor, InvalidCursorError, type Cursor } from "../../utils/cursor.js";
@@ -105,7 +106,8 @@ export class DatasetController {
             if (cursor === false) return;
 
             const page = await listDatasetsByOwner(db, owner, { limit, cursor });
-            this.sendList(res, "datasets", page, serializeRecords(page.items));
+            const items = await withVisibleItemCounts(db, page.items);
+            this.sendList(res, "datasets", page, serializeRecords(items));
         } catch (error) {
             this.handleError(error, res);
         }
@@ -121,7 +123,8 @@ export class DatasetController {
                 this.notFound(res, "dataset_not_found");
                 return;
             }
-            res.json({ success: true, data: serializeRecord(dataset) });
+            const [visible] = await withVisibleItemCounts(db, [dataset]);
+            res.json({ success: true, data: serializeRecord(visible) });
         } catch (error) {
             this.handleError(error, res);
         }
@@ -145,7 +148,9 @@ export class DatasetController {
                 description: data.description,
                 retentionPolicy: data.retention_policy,
             });
-            res.json({ success: true, data: serializeRecord(updated) });
+            // The policy may have just changed, so recount against the new one.
+            const [visible] = updated ? await withVisibleItemCounts(db, [updated]) : [updated];
+            res.json({ success: true, data: serializeRecord(visible) });
         } catch (error) {
             this.handleError(error, res);
         }
