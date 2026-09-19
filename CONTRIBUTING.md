@@ -128,7 +128,7 @@ Types:
 2. Update CHANGELOG.md
 3. Create release tag
 4. Publish to npm
-5. Update documentation — pushing the `v*` tag builds the docs image and deploys docs.anycrawl.dev (`.github/workflows/docker-image-docs.yml`); docs merged to `main` go live with the next release
+5. Update documentation — pushing the `v*` tag builds the docs image (`.github/workflows/docker-image-docs.yml`); once it succeeds, Redeploy the `anycrawl-docs` app in Coolify to publish docs.anycrawl.dev. Docs merged to `main` go live with the next release
 
 ## Getting Help
 
