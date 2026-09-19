@@ -273,6 +273,19 @@ A API Map combina três fontes:
 }
 ```
 
+#### 429 - Limite de concorrência atingido
+
+Somente no serviço hospedado. Retornado quando a chave de API já tem tantas requisições em execução quanto o plano permite. Nada foi iniciado e nenhum crédito foi cobrado — tente novamente assim que uma das suas requisições em andamento terminar.
+
+```json
+{
+    "success": false,
+    "error": "Concurrency limit reached",
+    "message": "Your plan allows 2 concurrent requests. Retry when an in-flight request finishes, or upgrade your plan.",
+    "limit": 2
+}
+```
+
 #### 500 - Erro interno do servidor
 
 ```json
@@ -358,4 +371,4 @@ O Map extrai URLs como aparecem em sitemaps e links. Não segue redirecionamento
 
 ### Existe limite de taxa?
 
-Não. A API **suporta alta concorrência nativamente**. Você pode fazer várias requisições simultâneas sem preocupação com rate limiting.
+No serviço hospedado, cada chave de API pode executar um número limitado de requisições ao mesmo tempo, conforme o seu [plano](https://anycrawl.dev/price). Requisições além do limite retornam `429 Concurrency limit reached` imediatamente — tente novamente assim que uma requisição em andamento terminar. Instâncias auto-hospedadas não têm limite de concorrência por padrão.

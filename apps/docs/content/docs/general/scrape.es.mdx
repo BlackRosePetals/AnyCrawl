@@ -8,7 +8,7 @@ icon: Crosshair
 
 La API scrape de AnyCrawl convierte cualquier página web en datos estructurados optimizados para modelos de lenguaje grandes (LLM). Admite varios motores de scraping (Cheerio, Playwright, Puppeteer) y formatos de salida como HTML, Markdown, JSON, etc.
 
-**Características clave**: la API **devuelve los datos de inmediato y de forma síncrona**; no hace falta polling ni webhooks. También **admite alta concurrencia de forma nativa** para operaciones de scraping a gran escala.
+**Características clave**: la API **devuelve los datos de inmediato y de forma síncrona**; no hace falta polling ni webhooks. También procesa en paralelo las solicitudes concurrentes para scraping a gran escala; en el servicio alojado, el número de solicitudes simultáneas por API key depende de tu plan (consulta [Concurrencia](#uso-con-alta-concurrencia)).
 
 ### Funciones principales
 
@@ -397,6 +397,31 @@ or
 }
 ```
 
+#### 403 - Función no disponible en tu plan
+
+Solo en el servicio alojado. Se devuelve cuando una solicitud usa una función que tu plan no incluye; actualmente `proxy: "stealth"`, que requiere el plan Hobby o superior.
+
+```json
+{
+    "success": false,
+    "error": "stealth_proxy_not_allowed",
+    "message": "Stealth proxy is not available on your plan. Upgrade to Hobby or above to use proxy: stealth."
+}
+```
+
+#### 429 - Límite de concurrencia alcanzado
+
+Solo en el servicio alojado. Se devuelve cuando la API key ya tiene en ejecución tantas solicitudes como permite su plan. No se inició nada ni se cobraron créditos: reintenta cuando termine alguna de tus solicitudes en curso.
+
+```json
+{
+    "success": false,
+    "error": "Concurrency limit reached",
+    "message": "Your plan allows 2 concurrent requests. Retry when an in-flight request finishes, or upgrade your plan.",
+    "limit": 2
+}
+```
+
 ### Scraping fallido
 
 ```json
@@ -516,7 +541,7 @@ or
 - Para mucho contenido estático, prioriza `cheerio`
 - Usa `playwright` o `puppeteer` solo cuando haga falta renderizado JS
 - Para mejores resultados, usa proxies rotativos para evitar bloqueos y límites; que los proxies sean estables
-- **Aprovecha la alta concurrencia nativa**: la API gestiona bien muchas solicitudes simultáneas
+- **Envía solicitudes en paralelo** dentro del límite de concurrencia de tu plan: las que lo superan se rechazan con `429` en lugar de ponerse en cola
 
 ### Manejo de errores
 
@@ -545,7 +570,12 @@ try {
 
 ## Uso con alta concurrencia
 
-La API **admite alta concurrencia de forma nativa**. Puedes lanzar muchas solicitudes simultáneas sin un límite de velocidad restrictivo:
+La API procesa en paralelo las solicitudes concurrentes.
+
+- **Servicio alojado (anycrawl.dev):** cada API key puede ejecutar un número limitado de solicitudes a la vez, según tu [plan](https://anycrawl.dev/price). Una solicitud que supere ese límite se rechaza de inmediato con [`429`](#429---límite-de-concurrencia-alcanzado); reinténtala cuando termine alguna de tus solicitudes en curso.
+- **Autoalojado:** sin límite de concurrencia por defecto.
+
+Mantén el número de solicitudes en paralelo dentro del límite de tu plan:
 
 ```javascript
 // Concurrent scraping example
@@ -601,4 +631,4 @@ R:
 
 ### P: ¿Hay límite de velocidad para solicitudes concurrentes?
 
-R: No, la API **admite alta concurrencia de forma nativa**. Puedes hacer muchas solicitudes simultáneas sin un límite restrictivo y todas devuelven datos al momento.
+R: En el servicio alojado, sí: cada API key puede ejecutar un número limitado de solicitudes a la vez, según tu [plan](https://anycrawl.dev/price). Las solicitudes que superan el límite devuelven `429 Concurrency limit reached` de inmediato; reintenta cuando termine una solicitud en curso. Las instalaciones autoalojadas no tienen límite de concurrencia por defecto.

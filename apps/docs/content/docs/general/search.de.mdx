@@ -384,6 +384,31 @@ Wenn gesetzt, kann jede Ergebnis-URL mit diesen Optionen gescrapet werden (wie `
 }
 ```
 
+#### 403 – Funktion in Ihrem Tarif nicht verfügbar
+
+Nur gehosteter Dienst. Wird zurückgegeben, wenn `scrape_options` eine Funktion anfordert, die Ihr Tarif nicht enthält – derzeit `proxy: "stealth"`, das den Hobby-Tarif oder höher erfordert.
+
+```json
+{
+    "success": false,
+    "error": "stealth_proxy_not_allowed",
+    "message": "Stealth proxy is not available on your plan. Upgrade to Hobby or above to use proxy: stealth."
+}
+```
+
+#### 429 – Parallelitätslimit erreicht
+
+Nur gehosteter Dienst. Wird zurückgegeben, wenn für den API-Key bereits so viele Anfragen laufen, wie sein Tarif erlaubt. Es wurde nichts gestartet und keine Credits wurden abgebucht – wiederholen Sie die Anfrage, sobald eine Ihrer laufenden Anfragen abgeschlossen ist.
+
+```json
+{
+    "success": false,
+    "error": "Concurrency limit reached",
+    "message": "Your plan allows 2 concurrent requests. Retry when an in-flight request finishes, or upgrade your plan.",
+    "limit": 2
+}
+```
+
 ## Best Practices
 
 ### Suchmaschine
@@ -438,7 +463,12 @@ try {
 
 ## Hohe Parallelität
 
-Die API **unterstützt hohe Parallelität**. Viele gleichzeitige Suchanfragen sind unkritisch:
+Die API verarbeitet parallele Suchanfragen gleichzeitig.
+
+- **Gehosteter Dienst (anycrawl.dev):** Jeder API-Key kann je nach [Tarif](https://anycrawl.dev/price) nur eine begrenzte Anzahl von Anfragen gleichzeitig ausführen. Eine Anfrage über diesem Limit wird sofort mit [`429`](#429--parallelitätslimit-erreicht) abgelehnt – wiederholen Sie sie, sobald eine Ihrer laufenden Anfragen abgeschlossen ist.
+- **Selbst gehostet:** standardmäßig kein Parallelitätslimit.
+
+Halten Sie die Zahl paralleler Anfragen innerhalb des Limits Ihres Tarifs:
 
 ```javascript
 // Concurrent searching example
@@ -462,7 +492,7 @@ console.log(`Completed ${results.length} searches simultaneously`);
 
 ## Limits und Credits
 
-- **Kein Ratenlimit** bei Parallelität — die API unterstützt hohe Parallelität nativ.
+- **Parallelität:** Im gehosteten Dienst hängt die Zahl der Anfragen, die ein API-Key gleichzeitig ausführen kann, von Ihrem [Tarif](https://anycrawl.dev/price) ab; Anfragen darüber hinaus liefern `429`. Selbst gehostete Deployments haben standardmäßig kein Limit.
 - Verbrauch über Response-Header und `BillingChargeDetails` prüfen.
 
 ### Credit-Modell (Suche + optionale Follow-up-Scrapes)
@@ -501,7 +531,7 @@ Die API wählt anhand von `lang` passende Einstellungen. Sprachcodes zur Zielreg
 
 ### Parallelität limitiert?
 
-Nein – **hohe Parallelität** ist nativ; Antworten kommen direkt.
+Im gehosteten Dienst ja: Jeder API-Key kann je nach [Tarif](https://anycrawl.dev/price) nur eine begrenzte Anzahl von Anfragen gleichzeitig ausführen. Anfragen über dem Limit liefern sofort `429 Concurrency limit reached` – wiederholen Sie sie, sobald eine laufende Anfrage abgeschlossen ist. Selbst gehostete Deployments haben standardmäßig kein Parallelitätslimit.
 
 ## Sprachen und Regionen
 

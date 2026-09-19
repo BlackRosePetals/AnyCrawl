@@ -273,6 +273,19 @@ The Map API combines three sources to discover URLs:
 }
 ```
 
+#### 429 - Concurrency Limit Reached
+
+Hosted service only. Returned when the API key already has as many requests running as its plan allows. Nothing was started and no credits were charged — retry once one of your in-flight requests finishes.
+
+```json
+{
+    "success": false,
+    "error": "Concurrency limit reached",
+    "message": "Your plan allows 2 concurrent requests. Retry when an in-flight request finishes, or upgrade your plan.",
+    "limit": 2
+}
+```
+
 #### 500 - Internal Server Error
 
 ```json
@@ -358,4 +371,4 @@ A: Map extracts URLs as they appear in sitemaps and page links. It does not foll
 
 ### Q: Is there a rate limit?
 
-A: No, the API **natively supports high concurrency**. You can make multiple simultaneous requests without rate limiting concerns.
+A: On the hosted service, each API key can run a limited number of requests at the same time, depending on your [plan](https://anycrawl.dev/price). Requests beyond the limit return `429 Concurrency limit reached` immediately — retry once an in-flight request finishes. Self-hosted deployments have no concurrency limit by default.

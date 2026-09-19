@@ -273,6 +273,19 @@ API Map kết hợp ba nguồn:
 }
 ```
 
+#### 429 - Đã đạt giới hạn đồng thời
+
+Chỉ áp dụng cho dịch vụ hosted. Trả về khi API key đã có số request đang chạy bằng mức tối đa gói của bạn cho phép. Request không được khởi chạy và không bị trừ credit — hãy thử lại khi một trong các request đang chạy hoàn tất.
+
+```json
+{
+    "success": false,
+    "error": "Concurrency limit reached",
+    "message": "Your plan allows 2 concurrent requests. Retry when an in-flight request finishes, or upgrade your plan.",
+    "limit": 2
+}
+```
+
 #### 500 - Lỗi server nội bộ
 
 ```json
@@ -358,4 +371,4 @@ A: Map trích URL như xuất hiện trong sitemap và liên kết trang. Không
 
 ### Q: Có giới hạn tốc độ request không?
 
-A: Không, API **hỗ trợ đồng thời cao**. Bạn có thể gửi nhiều request song song mà không lo rate limit theo kiểu đó.
+A: Với dịch vụ hosted, mỗi API key chỉ chạy được một số request cùng lúc có giới hạn, tùy theo [gói](https://anycrawl.dev/price) của bạn. Request vượt giới hạn sẽ nhận ngay `429 Concurrency limit reached` — hãy thử lại khi một request đang chạy hoàn tất. Bản self-hosted mặc định không giới hạn đồng thời.

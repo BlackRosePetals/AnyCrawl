@@ -19,6 +19,8 @@ AnyCrawl hỗ trợ bốn chế độ proxy có thể chỉ định trong reques
 | `stealth` | Dùng proxy cấu hình trong `ANYCRAWL_PROXY_STEALTH_URL` (thường là residential hoặc premium) |
 | Custom URL | Chuỗi URL proxy đầy đủ (ví dụ `http://user:pass@proxy:8080`), trong response trả về dạng `custom` |
 
+> **Dịch vụ hosted:** yêu cầu tường minh `proxy: "stealth"` cần [gói Hobby trở lên](https://anycrawl.dev/price). Ở gói Free, request sẽ bị từ chối với `403 stealth_proxy_not_allowed` — kể cả khi `stealth` được đặt trong template, target của monitor hoặc tác vụ theo lịch. `auto`, `base` và URL proxy tùy chỉnh dùng được ở mọi gói. Bản self-hosted không bị hạn chế.
+
 ### Ví dụ sử dụng
 
 ```json

@@ -8,7 +8,7 @@ icon: Crosshair
 
 Die AnyCrawl-Scrape-API wandelt beliebige Webseiten in für Large Language Models (LLMs) optimierte strukturierte Daten um. Unterstützt werden mehrere Engines (Cheerio, Playwright, Puppeteer) und Ausgabeformate wie HTML, Markdown, JSON u. a.
 
-**Kernpunkt**: Die API **antwortet sofort und synchron** – kein Polling, keine Webhooks. **Hohe Parallelität** ist nativ möglich.
+**Kernpunkt**: Die API **antwortet sofort und synchron** – kein Polling, keine Webhooks. Parallele Anfragen werden gleichzeitig verarbeitet, auch für groß angelegtes Scraping; im gehosteten Dienst hängt die Zahl gleichzeitig laufender Anfragen pro API-Key von Ihrem Tarif ab (siehe [Parallelität](#hohe-parallelität)).
 
 ### Kernfunktionen
 
@@ -397,6 +397,31 @@ or
 }
 ```
 
+#### 403 – Funktion in Ihrem Tarif nicht verfügbar
+
+Nur gehosteter Dienst. Wird zurückgegeben, wenn eine Anfrage eine Funktion nutzt, die Ihr Tarif nicht enthält – derzeit `proxy: "stealth"`, das den Hobby-Tarif oder höher erfordert.
+
+```json
+{
+    "success": false,
+    "error": "stealth_proxy_not_allowed",
+    "message": "Stealth proxy is not available on your plan. Upgrade to Hobby or above to use proxy: stealth."
+}
+```
+
+#### 429 – Parallelitätslimit erreicht
+
+Nur gehosteter Dienst. Wird zurückgegeben, wenn für den API-Key bereits so viele Anfragen laufen, wie sein Tarif erlaubt. Es wurde nichts gestartet und keine Credits wurden abgebucht – wiederholen Sie die Anfrage, sobald eine Ihrer laufenden Anfragen abgeschlossen ist.
+
+```json
+{
+    "success": false,
+    "error": "Concurrency limit reached",
+    "message": "Your plan allows 2 concurrent requests. Retry when an in-flight request finishes, or upgrade your plan.",
+    "limit": 2
+}
+```
+
 ### Scraping fehlgeschlagen
 
 ```json
@@ -516,7 +541,7 @@ or
 - Viel statischer Content: `cheerio` bevorzugen
 - Browser-Engines nur bei JS-Bedarf
 - Rotierende Proxies helfen gegen Sperren; stabile Proxies verwenden
-- **Hohe Parallelität** nativ nutzen
+- **Anfragen parallel senden** – innerhalb des Parallelitätslimits Ihres Tarifs; Anfragen darüber hinaus werden mit `429` abgelehnt statt in eine Warteschlange gestellt
 
 ### Fehlerbehandlung
 
@@ -545,7 +570,12 @@ try {
 
 ## Hohe Parallelität
 
-Die API **unterstützt nativ hohe Parallelität**. Viele gleichzeitige Anfragen sind unkritisch:
+Die API verarbeitet parallele Anfragen gleichzeitig.
+
+- **Gehosteter Dienst (anycrawl.dev):** Jeder API-Key kann je nach [Tarif](https://anycrawl.dev/price) nur eine begrenzte Anzahl von Anfragen gleichzeitig ausführen. Eine Anfrage über diesem Limit wird sofort mit [`429`](#429--parallelitätslimit-erreicht) abgelehnt – wiederholen Sie sie, sobald eine Ihrer laufenden Anfragen abgeschlossen ist.
+- **Selbst gehostet:** standardmäßig kein Parallelitätslimit.
+
+Halten Sie die Zahl paralleler Anfragen innerhalb des Limits Ihres Tarifs:
 
 ```javascript
 // Concurrent scraping example
@@ -591,4 +621,4 @@ Die API unterstützt keine Session-Auth. Öffentliche Seiten scrapen oder andere
 
 ### Ratenlimit bei Parallelität?
 
-Nein – **hohe Parallelität** ist nativ; Antworten kommen direkt.
+Im gehosteten Dienst ja: Jeder API-Key kann je nach [Tarif](https://anycrawl.dev/price) nur eine begrenzte Anzahl von Anfragen gleichzeitig ausführen. Anfragen über dem Limit liefern sofort `429 Concurrency limit reached` – wiederholen Sie sie, sobald eine laufende Anfrage abgeschlossen ist. Selbst gehostete Deployments haben standardmäßig kein Parallelitätslimit.

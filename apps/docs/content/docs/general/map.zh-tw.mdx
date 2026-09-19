@@ -273,6 +273,19 @@ Map API 結合三種來源探索 URL：
 }
 ```
 
+#### 429 - 已達併發上限
+
+僅限雲端服務。當該 API 金鑰正在執行的請求數已達方案允許的上限時回傳。此時不會啟動任何處理，也不會扣除點數——請等待任一進行中的請求完成後再重試。
+
+```json
+{
+    "success": false,
+    "error": "Concurrency limit reached",
+    "message": "Your plan allows 2 concurrent requests. Retry when an in-flight request finishes, or upgrade your plan.",
+    "limit": 2
+}
+```
+
 #### 500 - 內部伺服器錯誤
 
 ```json
@@ -358,4 +371,4 @@ const crawlResponse = await fetch("/v1/crawl", {
 
 ### 問：有速率限制嗎？
 
-答：沒有，API **原生支援高併發**。你可以同時發起多個請求，無需擔心速率限制。
+答：在雲端服務上，每個 API 金鑰可同時執行的請求數量有限，取決於你的[方案](https://anycrawl.dev/price)。超出上限的請求會立即回傳 `429 Concurrency limit reached`——請等待進行中的請求完成後再重試。自架部署預設無併發限制。

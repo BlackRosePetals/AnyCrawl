@@ -8,7 +8,7 @@ icon: Crosshair
 
 A API Scrape do AnyCrawl converte qualquer página em dados estruturados otimizados para LLMs. Suporta Cheerio, Playwright, Puppeteer e vários formatos (HTML, Markdown, JSON etc.).
 
-**Destaques**: a API **responde de imediato, de forma síncrona** — sem polling nem webhooks. Há **suporte nativo a alta concorrência** para scraping em escala.
+**Destaques**: a API **responde de imediato, de forma síncrona** — sem polling nem webhooks. Ela também processa requisições concorrentes em paralelo para scraping em escala; no serviço hospedado, o número de requisições simultâneas por chave de API depende do seu plano (veja [Concorrência](#alta-concorrência)).
 
 ### Recursos principais
 
@@ -397,6 +397,31 @@ or
 }
 ```
 
+#### 403 — Recurso não disponível no seu plano
+
+Somente no serviço hospedado. Retornado quando a requisição usa um recurso que o seu plano não inclui — atualmente `proxy: "stealth"`, que exige o plano Hobby ou superior.
+
+```json
+{
+    "success": false,
+    "error": "stealth_proxy_not_allowed",
+    "message": "Stealth proxy is not available on your plan. Upgrade to Hobby or above to use proxy: stealth."
+}
+```
+
+#### 429 — Limite de concorrência atingido
+
+Somente no serviço hospedado. Retornado quando a chave de API já tem tantas requisições em execução quanto o plano permite. Nada foi iniciado e nenhum crédito foi cobrado — tente novamente assim que uma das suas requisições em andamento terminar.
+
+```json
+{
+    "success": false,
+    "error": "Concurrency limit reached",
+    "message": "Your plan allows 2 concurrent requests. Retry when an in-flight request finishes, or upgrade your plan.",
+    "limit": 2
+}
+```
+
 ### Scraping com falha
 
 ```json
@@ -516,7 +541,7 @@ or
 - Volume estático: priorize `cheerio`
 - `playwright`/`puppeteer` só quando precisar de renderização JS
 - Proxies rotativos ajudam contra bloqueios; mantenha proxies estáveis
-- **Alta concorrência nativa** — várias requisições simultâneas
+- **Envie requisições em paralelo** dentro do limite de concorrência do seu plano — requisições além dele são rejeitadas com `429`, e não enfileiradas
 
 ### Tratamento de erros
 
@@ -545,7 +570,12 @@ try {
 
 ## Alta concorrência
 
-A API **suporta alta concorrência nativamente**. Várias requisições simultâneas sem limite artificial de taxa:
+A API processa requisições concorrentes em paralelo.
+
+- **Serviço hospedado (anycrawl.dev):** cada chave de API pode executar um número limitado de requisições ao mesmo tempo, conforme o seu [plano](https://anycrawl.dev/price). Uma requisição além desse limite é rejeitada imediatamente com [`429`](#429--limite-de-concorrência-atingido) — tente novamente assim que uma das suas requisições em andamento terminar.
+- **Auto-hospedado:** sem limite de concorrência por padrão.
+
+Mantenha o número de requisições paralelas dentro do limite do seu plano:
 
 ```javascript
 // Concurrent scraping example
@@ -599,4 +629,4 @@ A API não faz autenticação. Sugestões:
 
 ### Há limite de taxa para concorrência?
 
-Não. A API **suporta alta concorrência nativamente**. Várias requisições simultâneas; respostas imediatas.
+No serviço hospedado, sim: cada chave de API pode executar um número limitado de requisições ao mesmo tempo, conforme o seu [plano](https://anycrawl.dev/price). Requisições além do limite retornam `429 Concurrency limit reached` imediatamente — tente novamente assim que uma requisição em andamento terminar. Instâncias auto-hospedadas não têm limite de concorrência por padrão.

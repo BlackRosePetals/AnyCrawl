@@ -19,6 +19,8 @@ AnyCrawl 支持四种代理模式，可在 API 请求中指定：
 | `stealth` | 使用 `ANYCRAWL_PROXY_STEALTH_URL` 中配置的代理（通常是住宅代理或高级代理） |
 | 自定义 URL | 完整的代理 URL 字符串（例如 `http://user:pass@proxy:8080`），在响应中返回为 `custom` |
 
+> **托管服务：** 显式请求 `proxy: "stealth"` 需要 [Hobby 及以上套餐](https://anycrawl.dev/price)。在 Free 套餐上，该请求会被拒绝并返回 `403 stealth_proxy_not_allowed` —— 在模板、监控目标或定时任务中设置 `stealth` 时同样如此。`auto`、`base` 和自定义代理 URL 在所有套餐中均可使用。自托管部署不受此限制。
+
 ### 使用示例
 
 ```json

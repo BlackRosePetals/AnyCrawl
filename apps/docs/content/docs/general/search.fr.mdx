@@ -386,6 +386,31 @@ L’API renvoie deux types :
 }
 ```
 
+#### 403 — Fonctionnalité non disponible dans votre offre
+
+Service hébergé uniquement. Renvoyé lorsque `scrape_options` demande une fonctionnalité non incluse dans votre offre — actuellement `proxy: "stealth"`, qui nécessite l’offre Hobby ou supérieure.
+
+```json
+{
+    "success": false,
+    "error": "stealth_proxy_not_allowed",
+    "message": "Stealth proxy is not available on your plan. Upgrade to Hobby or above to use proxy: stealth."
+}
+```
+
+#### 429 — Limite de concurrence atteinte
+
+Service hébergé uniquement. Renvoyé lorsque la clé API a déjà autant de requêtes en cours que son offre le permet. Rien n’a été lancé et aucun crédit n’a été débité — réessayez dès que l’une de vos requêtes en cours se termine.
+
+```json
+{
+    "success": false,
+    "error": "Concurrency limit reached",
+    "message": "Your plan allows 2 concurrent requests. Retry when an in-flight request finishes, or upgrade your plan.",
+    "limit": 2
+}
+```
+
 ## Bonnes pratiques
 
 ### Choix du moteur
@@ -440,7 +465,12 @@ try {
 
 ## Forte concurrence
 
-L’API **prend nativement en charge la forte concurrence**. Plusieurs recherches simultanées sans limitation de débit :
+L’API traite les recherches concurrentes en parallèle.
+
+- **Service hébergé (anycrawl.dev) :** chaque clé API ne peut exécuter qu’un nombre limité de requêtes simultanément, selon votre [offre](https://anycrawl.dev/price). Une requête au-delà de cette limite est immédiatement rejetée avec [`429`](#429--limite-de-concurrence-atteinte) — réessayez-la dès que l’une de vos requêtes en cours se termine.
+- **Auto-hébergé :** aucune limite de concurrence par défaut.
+
+Maintenez le nombre de requêtes parallèles dans la limite de votre offre :
 
 ```javascript
 // Concurrent searching example
@@ -464,7 +494,7 @@ console.log(`Completed ${results.length} searches simultaneously`);
 
 ## Limites de débit et crédits
 
-- **Pas de limitation de débit pour les requêtes concurrentes** — l’API gère nativement la concurrence.
+- **Concurrence :** sur le service hébergé, le nombre de requêtes qu’une clé API peut exécuter simultanément dépend de votre [offre](https://anycrawl.dev/price) ; les requêtes au-delà renvoient `429`. Les déploiements auto-hébergés n’ont pas de limite par défaut.
 - Suivez la consommation via les en-têtes et `BillingChargeDetails`.
 
 ### Modèle de crédits (recherche + scrapes de suivi optionnels)
@@ -512,7 +542,7 @@ R :
 
 ### Limitation de débit pour les recherches concurrentes ?
 
-R : Non, l’API **prend nativement en charge la forte concurrence**. Requêtes simultanées sans souci de limitation ; réponses immédiates.
+R : Sur le service hébergé, oui : chaque clé API ne peut exécuter qu’un nombre limité de requêtes simultanément, selon votre [offre](https://anycrawl.dev/price). Les requêtes au-delà de la limite renvoient immédiatement `429 Concurrency limit reached` — réessayez dès qu’une requête en cours se termine. Les déploiements auto-hébergés n’ont pas de limite de concurrence par défaut.
 
 ## Langues et régions prises en charge
 

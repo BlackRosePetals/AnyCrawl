@@ -386,6 +386,31 @@ API 回傳兩種類型的結果：
 }
 ```
 
+#### 403 - 方案不支援此功能
+
+僅限雲端服務。當 `scrape_options` 請求了你的方案未包含的功能時回傳——目前為 `proxy: "stealth"`，需要 Hobby 或更高方案。
+
+```json
+{
+    "success": false,
+    "error": "stealth_proxy_not_allowed",
+    "message": "Stealth proxy is not available on your plan. Upgrade to Hobby or above to use proxy: stealth."
+}
+```
+
+#### 429 - 已達併發上限
+
+僅限雲端服務。當該 API 金鑰正在執行的請求數已達方案允許的上限時回傳。此時不會啟動任何處理，也不會扣除點數——請等待任一進行中的請求完成後再重試。
+
+```json
+{
+    "success": false,
+    "error": "Concurrency limit reached",
+    "message": "Your plan allows 2 concurrent requests. Retry when an in-flight request finishes, or upgrade your plan.",
+    "limit": 2
+}
+```
+
 ## 最佳實踐
 
 ### 搜尋引擎選擇指南
@@ -440,7 +465,12 @@ try {
 
 ## 高併發使用
 
-該 API **原生支援高併發**。你可以同時發起多個搜尋請求，無需擔心速率限制：
+API 會平行處理併發搜尋請求。
+
+- **雲端服務（anycrawl.dev）：** 每個 API 金鑰可同時執行的請求數量有限，取決於你的[方案](https://anycrawl.dev/price)。超出上限的請求會立即以 [`429`](#429---已達併發上限) 拒絕——請等待任一進行中的請求完成後再重試。
+- **自架部署：** 預設無併發限制。
+
+請將平行請求數量控制在方案上限內：
 
 ```javascript
 // Concurrent searching example
@@ -464,7 +494,7 @@ console.log(`Completed ${results.length} searches simultaneously`);
 
 ## 速率限制與點數
 
-- **併發請求無速率限制**——API 原生支援高併發。
+- **併發：** 在雲端服務上，API 金鑰可同時執行的請求數量取決於你的[方案](https://anycrawl.dev/price)；超出上限的請求會回傳 `429`。自架部署預設無限制。
 - 請透過回應標頭與 `BillingChargeDetails` 核對用量。
 
 ### 點數模型（搜尋 + 可選的結果跟抓）
@@ -512,7 +542,7 @@ console.log(`Completed ${results.length} searches simultaneously`);
 
 ### 問：併發搜尋請求有速率限制嗎？
 
-答：沒有，API **原生支援高併發**。你可以同時發起多個搜尋請求，無需擔心速率限制，所有請求都會立即回傳資料。
+答：在雲端服務上，是的：每個 API 金鑰可同時執行的請求數量有限，取決於你的[方案](https://anycrawl.dev/price)。超出上限的請求會立即回傳 `429 Concurrency limit reached`——請等待進行中的請求完成後再重試。自架部署預設無併發限制。
 
 ## 語言和地區支援
 

@@ -19,6 +19,8 @@ API リクエストでは次の 4 つのプロキシモードを指定できま�
 | `stealth` | `ANYCRAWL_PROXY_STEALTH_URL` に設定したプロキシを使う（通常はレジデンシャルやプレミアム） |
 | カスタム URL | 完全なプロキシ URL 文字列（例：`http://user:pass@proxy:8080`）。レスポンスでは `custom` として返ります |
 
+> **ホスト型サービス：** `proxy: "stealth"` を明示的に指定するには [Hobby 以上のプラン](https://anycrawl.dev/price)が必要です。Free プランでは、テンプレート、モニターのターゲット、スケジュールタスク内で `stealth` を設定した場合も含め、リクエストは `403 stealth_proxy_not_allowed` で拒否されます。`auto`、`base`、カスタムプロキシ URL はすべてのプランで利用できます。セルフホスト環境には制限はありません。
+
 ### 使用例
 
 ```json
