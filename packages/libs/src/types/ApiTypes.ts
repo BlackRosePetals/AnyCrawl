@@ -12,6 +12,7 @@ export interface RequestWithAuth extends Request {
         hashedKey: string;
         salt: string;
         credits: number;
+        subscriptionTier?: string;
         createdAt: Date;
         lastUsedAt?: Date;
         expiresAt?: Date;
