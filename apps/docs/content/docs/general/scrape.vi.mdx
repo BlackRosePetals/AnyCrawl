@@ -8,7 +8,7 @@ icon: Crosshair
 
 API scrape của AnyCrawl chuyển mọi trang web thành dữ liệu có cấu trúc, tối ưu cho mô hình ngôn ngữ lớn (LLM). Hỗ trợ nhiều engine gồm Cheerio, Playwright, Puppeteer và đầu ra HTML, Markdown, JSON, v.v.
 
-**Điểm nổi bật**: API **trả dữ liệu ngay và đồng bộ** — không cần polling hay webhook. **Hỗ trợ đồng thời cao gốc** cho thao tác thu thập quy mô lớn.
+**Điểm nổi bật**: API **trả dữ liệu ngay và đồng bộ** — không cần polling hay webhook. API cũng xử lý song song các request đồng thời cho thao tác thu thập quy mô lớn; với dịch vụ hosted, số request chạy cùng lúc trên mỗi API key tùy thuộc vào gói của bạn (xem [Đồng thời](#dùng-đồng-thời-cao)).
 
 ### Tính năng cốt lõi
 
@@ -397,6 +397,31 @@ hoặc
 }
 ```
 
+#### 403 - Tính năng không có trong gói của bạn
+
+Chỉ áp dụng cho dịch vụ hosted. Trả về khi request dùng tính năng mà gói của bạn không bao gồm — hiện tại là `proxy: "stealth"`, yêu cầu gói Hobby trở lên.
+
+```json
+{
+    "success": false,
+    "error": "stealth_proxy_not_allowed",
+    "message": "Stealth proxy is not available on your plan. Upgrade to Hobby or above to use proxy: stealth."
+}
+```
+
+#### 429 - Đã đạt giới hạn đồng thời
+
+Chỉ áp dụng cho dịch vụ hosted. Trả về khi API key đã có số request đang chạy bằng mức tối đa gói của bạn cho phép. Request không được khởi chạy và không bị trừ credit — hãy thử lại khi một trong các request đang chạy hoàn tất.
+
+```json
+{
+    "success": false,
+    "error": "Concurrency limit reached",
+    "message": "Your plan allows 2 concurrent requests. Retry when an in-flight request finishes, or upgrade your plan.",
+    "limit": 2
+}
+```
+
 ### Thu thập thất bại
 
 ```json
@@ -516,7 +541,7 @@ hoặc
 - Thu thập hàng loạt nội dung tĩnh: ưu tiên `cheerio`
 - Chỉ dùng `playwright` hoặc `puppeteer` khi cần render JavaScript
 - Nên dùng proxy xoay vòng để tránh chặn IP và giới hạn tốc độ; đảm bảo proxy ổn định
-- **Tận dụng đồng thời cao gốc** — API xử lý nhiều request đồng thời hiệu quả
+- **Gửi request song song** trong giới hạn đồng thời của gói — request vượt giới hạn sẽ bị từ chối với `429` thay vì được xếp hàng
 
 ### Xử lý lỗi
 
@@ -545,7 +570,12 @@ try {
 
 ## Dùng đồng thời cao
 
-API **hỗ trợ đồng thời cao gốc**. Bạn có thể gửi nhiều request đồng thời mà không lo giới hạn tốc độ:
+API xử lý các request đồng thời một cách song song.
+
+- **Dịch vụ hosted (anycrawl.dev):** mỗi API key chỉ chạy được một số request cùng lúc có giới hạn, tùy theo [gói](https://anycrawl.dev/price) của bạn. Request vượt giới hạn sẽ bị từ chối ngay với [`429`](#429---đã-đạt-giới-hạn-đồng-thời) — hãy thử lại khi một trong các request đang chạy hoàn tất.
+- **Self-hosted:** mặc định không giới hạn đồng thời.
+
+Hãy giữ số request song song trong giới hạn của gói:
 
 ```javascript
 // Concurrent scraping example
@@ -601,4 +631,4 @@ const results = await Promise.all(scrapePromises);
 
 ### Hỏi: Có giới hạn tốc độ cho request đồng thời không?
 
-**Đáp**: Không, API **hỗ trợ đồng thời cao gốc**. Có thể gửi nhiều request đồng thời không lo rate limit; mọi request trả dữ liệu ngay.
+**Đáp**: Với dịch vụ hosted, có: mỗi API key chỉ chạy được một số request cùng lúc có giới hạn, tùy theo [gói](https://anycrawl.dev/price) của bạn. Request vượt giới hạn sẽ nhận ngay `429 Concurrency limit reached` — hãy thử lại khi một request đang chạy hoàn tất. Bản self-hosted mặc định không giới hạn đồng thời.

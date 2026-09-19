@@ -273,6 +273,19 @@ L’API Map combine trois sources pour découvrir les URLs :
 }
 ```
 
+#### 429 — Limite de concurrence atteinte
+
+Service hébergé uniquement. Renvoyé lorsque la clé API a déjà autant de requêtes en cours que son offre le permet. Rien n’a été lancé et aucun crédit n’a été débité — réessayez dès que l’une de vos requêtes en cours se termine.
+
+```json
+{
+    "success": false,
+    "error": "Concurrency limit reached",
+    "message": "Your plan allows 2 concurrent requests. Retry when an in-flight request finishes, or upgrade your plan.",
+    "limit": 2
+}
+```
+
 #### 500 — Erreur interne du serveur
 
 ```json
@@ -358,4 +371,4 @@ R : Map extrait les URLs telles qu’elles apparaissent dans les sitemaps et les
 
 ### Q : Y a-t-il une limite de débit ?
 
-R : Non, l’API **prend nativement en charge la forte concurrence**. Vous pouvez lancer plusieurs requêtes simultanées sans souci de limitation de débit.
+R : Sur le service hébergé, chaque clé API ne peut exécuter qu’un nombre limité de requêtes simultanément, selon votre [offre](https://anycrawl.dev/price). Les requêtes au-delà de la limite renvoient immédiatement `429 Concurrency limit reached` — réessayez dès qu’une requête en cours se termine. Les déploiements auto-hébergés n’ont pas de limite de concurrence par défaut.

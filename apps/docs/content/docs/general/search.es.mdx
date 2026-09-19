@@ -386,6 +386,31 @@ La API devuelve dos tipos:
 }
 ```
 
+#### 403 - Función no disponible en tu plan
+
+Solo en el servicio alojado. Se devuelve cuando `scrape_options` solicita una función que tu plan no incluye; actualmente `proxy: "stealth"`, que requiere el plan Hobby o superior.
+
+```json
+{
+    "success": false,
+    "error": "stealth_proxy_not_allowed",
+    "message": "Stealth proxy is not available on your plan. Upgrade to Hobby or above to use proxy: stealth."
+}
+```
+
+#### 429 - Límite de concurrencia alcanzado
+
+Solo en el servicio alojado. Se devuelve cuando la API key ya tiene en ejecución tantas solicitudes como permite su plan. No se inició nada ni se cobraron créditos: reintenta cuando termine alguna de tus solicitudes en curso.
+
+```json
+{
+    "success": false,
+    "error": "Concurrency limit reached",
+    "message": "Your plan allows 2 concurrent requests. Retry when an in-flight request finishes, or upgrade your plan.",
+    "limit": 2
+}
+```
+
 ## Buenas prácticas
 
 ### Elección del motor
@@ -440,7 +465,12 @@ try {
 
 ## Uso con alta concurrencia
 
-La API **admite alta concurrencia de forma nativa**. Puedes lanzar muchas búsquedas simultáneas sin un límite de velocidad restrictivo:
+La API procesa en paralelo las búsquedas concurrentes.
+
+- **Servicio alojado (anycrawl.dev):** cada API key puede ejecutar un número limitado de solicitudes a la vez, según tu [plan](https://anycrawl.dev/price). Una solicitud que supere ese límite se rechaza de inmediato con [`429`](#429---límite-de-concurrencia-alcanzado); reinténtala cuando termine alguna de tus solicitudes en curso.
+- **Autoalojado:** sin límite de concurrencia por defecto.
+
+Mantén el número de solicitudes en paralelo dentro del límite de tu plan:
 
 ```javascript
 // Concurrent searching example
@@ -464,7 +494,7 @@ console.log(`Completed ${results.length} searches simultaneously`);
 
 ## Límites de velocidad y créditos
 
-- **Sin límite de velocidad para solicitudes concurrentes** — la API admite alta concurrencia de forma nativa.
+- **Concurrencia:** en el servicio alojado, el número de solicitudes que una API key puede ejecutar a la vez depende de tu [plan](https://anycrawl.dev/price); las que lo superan devuelven `429`. Las instalaciones autoalojadas no tienen límite por defecto.
 - Revisa el consumo en cabeceras y `BillingChargeDetails`.
 
 ### Modelo de créditos (búsqueda + scrapes de seguimiento opcionales)
@@ -512,7 +542,7 @@ R:
 
 ### P: ¿Hay límite de velocidad en búsquedas concurrentes?
 
-R: No, la API **admite alta concurrencia de forma nativa**. Varias búsquedas simultáneas sin límite restrictivo; todas responden al momento.
+R: En el servicio alojado, sí: cada API key puede ejecutar un número limitado de solicitudes a la vez, según tu [plan](https://anycrawl.dev/price). Las solicitudes que superan el límite devuelven `429 Concurrency limit reached` de inmediato; reintenta cuando termine una solicitud en curso. Las instalaciones autoalojadas no tienen límite de concurrencia por defecto.
 
 ## Idiomas y regiones
 

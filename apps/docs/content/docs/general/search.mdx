@@ -386,6 +386,31 @@ The API returns two types of results:
 }
 ```
 
+#### 403 - Feature Not Available on Your Plan
+
+Hosted service only. Returned when `scrape_options` asks for a feature your plan does not include — currently `proxy: "stealth"`, which requires Hobby or above.
+
+```json
+{
+    "success": false,
+    "error": "stealth_proxy_not_allowed",
+    "message": "Stealth proxy is not available on your plan. Upgrade to Hobby or above to use proxy: stealth."
+}
+```
+
+#### 429 - Concurrency Limit Reached
+
+Hosted service only. Returned when the API key already has as many requests running as its plan allows. Nothing was started and no credits were charged — retry once one of your in-flight requests finishes.
+
+```json
+{
+    "success": false,
+    "error": "Concurrency limit reached",
+    "message": "Your plan allows 2 concurrent requests. Retry when an in-flight request finishes, or upgrade your plan.",
+    "limit": 2
+}
+```
+
 ## Best Practices
 
 ### Search Engine Selection Guidelines
@@ -446,7 +471,12 @@ try {
 
 ## High Concurrency Usage
 
-The API **natively supports high concurrency**. You can make multiple simultaneous search requests without rate limiting concerns:
+The API processes concurrent search requests in parallel.
+
+- **Hosted service (anycrawl.dev):** each API key can run a limited number of requests at the same time, depending on your [plan](https://anycrawl.dev/price). A request beyond that limit is rejected immediately with [`429`](#429---concurrency-limit-reached) — retry it once one of your in-flight requests finishes.
+- **Self-hosted:** no concurrency limit by default.
+
+Keep the number of parallel requests within your plan's limit:
 
 ```javascript
 // Concurrent searching example
@@ -470,7 +500,7 @@ console.log(`Completed ${results.length} searches simultaneously`);
 
 ## Rate Limits and Credits
 
-- **No rate limiting for concurrent requests** — the API supports high concurrency.
+- **Concurrency:** on the hosted service, the number of requests an API key can run at once depends on your [plan](https://anycrawl.dev/price); requests beyond it return `429`. Self-hosted deployments have no limit by default.
 - Monitor usage via API response headers and billing payloads.
 
 ### Credit model (search + optional follow-up scrapes)
@@ -524,7 +554,7 @@ A:
 
 ### Q: Is there rate limiting for concurrent search requests?
 
-A: No, the API **natively supports high concurrency**. You can make multiple simultaneous search requests without worrying about rate limits, and all requests return data immediately.
+A: On the hosted service, yes: each API key can run a limited number of requests at the same time, depending on your [plan](https://anycrawl.dev/price). Requests beyond the limit return `429 Concurrency limit reached` immediately — retry once an in-flight request finishes. Self-hosted deployments have no concurrency limit by default.
 
 ## Language and Region Support
 

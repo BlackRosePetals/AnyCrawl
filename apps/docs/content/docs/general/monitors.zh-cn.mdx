@@ -105,7 +105,7 @@ console.log("Monitor ID:", monitor.monitor_id);
 
 ### 价格监控
 
-每 15 分钟提取并对比商品价格：
+每 15 分钟提取并对比商品价格。在托管服务上，此调度需要支持 15 分钟检查频率的套餐 —— 参见[套餐限制](#套餐限制托管服务)：
 
 ```json
 {
@@ -227,6 +227,18 @@ pnpm add @anycrawl/js-sdk
 | 请求体 targets 上限 | 50 |
 | 邮件收件人 | 20 |
 | 内联快照大小 | 默认 256 KB（`ANYCRAWL_MONITOR_MAX_INLINE_CHARS`） |
+
+### 套餐限制（托管服务）
+
+在托管服务上，你的[套餐](https://anycrawl.dev/price)会限制可保有的 monitor 数量以及每个 monitor 的检查频率。这两项限制会在创建 monitor 时、以及每次更新其 `targets` 或 `cron_expression` 时校验：
+
+| 响应 | 触发条件 |
+|---|---|
+| `403 Monitor limit reached` | monitor 数量已达到套餐上限。响应中包含 `limit`。请删除一个 monitor 或升级套餐。 |
+| `403 Check frequency too high for your plan` | cron 表达式的运行频率超出套餐允许的范围。响应中包含 `min_interval_minutes`。 |
+| `403 stealth_proxy_not_allowed` | 某个 target 在不支持隐身代理的套餐上设置了 `options.proxy: "stealth"`。 |
+
+检查间隔是指 cron 表达式相邻两次运行之间的最短间隔，按 UTC 计算，因此 `timezone` 的夏令时切换永远不会被计入限制。自托管部署不受限制。
 
 ## 相关文档
 

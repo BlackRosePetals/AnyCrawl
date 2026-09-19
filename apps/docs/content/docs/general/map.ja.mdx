@@ -273,6 +273,19 @@ Map API は次の 3 ソースを組み合わせて URL を発見します。
 }
 ```
 
+#### 429 - 同時実行数の上限に到達
+
+ホスト型サービスのみ。その API キーで実行中のリクエスト数がすでにプランの上限に達している場合に返されます。リクエストは開始されず、クレジットも消費されません。実行中のリクエストのいずれかが完了してから再試行してください。
+
+```json
+{
+    "success": false,
+    "error": "Concurrency limit reached",
+    "message": "Your plan allows 2 concurrent requests. Retry when an in-flight request finishes, or upgrade your plan.",
+    "limit": 2
+}
+```
+
 #### 500 - 内部サーバーエラー
 
 ```json
@@ -358,4 +371,4 @@ A: Map はサイトマップやページリンクに現れる URL をそのま�
 
 ### Q: レート制限はある？
 
-A: いいえ。API は**高い同時実行をネイティブにサポート**します。複数リクエストを同時に送ってもレート制限の心配は通常ありません。
+A: ホスト型サービスでは、API キーごとに同時に実行できるリクエスト数には、[プラン](https://anycrawl.dev/price)に応じた上限があります。上限を超えたリクエストは即座に `429 Concurrency limit reached` を返します。実行中のリクエストが完了してから再試行してください。セルフホスト環境では、既定で同時実行数の上限はありません。

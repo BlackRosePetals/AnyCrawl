@@ -8,7 +8,7 @@ icon: Crosshair
 
 AnyCrawl scrape API converts any webpage into structured data optimized for Large Language Models (LLM). It supports multiple scraping engines including Cheerio, Playwright, Puppeteer, and outputs in various formats such as HTML, Markdown, JSON, etc.
 
-**Key Features**: The API **returns data immediately and synchronously** - no polling or webhooks required. It also **natively supports high concurrency** for large-scale scraping operations.
+**Key Features**: The API **returns data immediately and synchronously** - no polling or webhooks required. It also processes concurrent requests in parallel for large-scale scraping; on the hosted service the number running at once per API key depends on your plan (see [Concurrency](#high-concurrency-usage)).
 
 ### Core Features
 
@@ -397,6 +397,31 @@ or
 }
 ```
 
+#### 403 - Feature Not Available on Your Plan
+
+Hosted service only. Returned when a request uses a feature your plan does not include — currently `proxy: "stealth"`, which requires Hobby or above.
+
+```json
+{
+    "success": false,
+    "error": "stealth_proxy_not_allowed",
+    "message": "Stealth proxy is not available on your plan. Upgrade to Hobby or above to use proxy: stealth."
+}
+```
+
+#### 429 - Concurrency Limit Reached
+
+Hosted service only. Returned when the API key already has as many requests running as its plan allows. Nothing was started and no credits were charged — retry once one of your in-flight requests finishes.
+
+```json
+{
+    "success": false,
+    "error": "Concurrency limit reached",
+    "message": "Your plan allows 2 concurrent requests. Retry when an in-flight request finishes, or upgrade your plan.",
+    "limit": 2
+}
+```
+
 ### Failed Scraping
 
 ```json
@@ -516,7 +541,7 @@ or
 - For bulk static content scraping, prioritize `cheerio` engine
 - Only use `playwright` or `puppeteer` when JavaScript rendering is required
 - For best results, use rotating proxies to avoid IP blocks and rate limits, and ensure proxy servers are stable and reliable
-- **Leverage native high concurrency** - the API handles multiple concurrent requests efficiently
+- **Send requests in parallel** within your plan's concurrency limit — requests beyond it are rejected with `429` rather than queued
 
 ### Error Handling
 
@@ -545,7 +570,12 @@ try {
 
 ## High Concurrency Usage
 
-The API **natively supports high concurrency**. You can make multiple simultaneous requests without rate limiting concerns:
+The API processes concurrent requests in parallel.
+
+- **Hosted service (anycrawl.dev):** each API key can run a limited number of requests at the same time, depending on your [plan](https://anycrawl.dev/price). A request beyond that limit is rejected immediately with [`429`](#429---concurrency-limit-reached) — retry it once one of your in-flight requests finishes.
+- **Self-hosted:** no concurrency limit by default.
+
+Keep the number of parallel requests within your plan's limit:
 
 ```javascript
 // Concurrent scraping example
@@ -601,4 +631,4 @@ A:
 
 ### Q: Is there rate limiting for concurrent requests?
 
-A: No, the API **natively supports high concurrency**. You can make multiple simultaneous requests without worrying about rate limits, and all requests return data immediately.
+A: On the hosted service, yes: each API key can run a limited number of requests at the same time, depending on your [plan](https://anycrawl.dev/price). Requests beyond the limit return `429 Concurrency limit reached` immediately — retry once an in-flight request finishes. Self-hosted deployments have no concurrency limit by default.

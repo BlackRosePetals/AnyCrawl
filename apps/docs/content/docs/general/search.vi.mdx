@@ -386,6 +386,31 @@ API trả hai loại:
 }
 ```
 
+#### 403 - Tính năng không có trong gói của bạn
+
+Chỉ áp dụng cho dịch vụ hosted. Trả về khi `scrape_options` yêu cầu dùng tính năng mà gói của bạn không bao gồm — hiện tại là `proxy: "stealth"`, yêu cầu gói Hobby trở lên.
+
+```json
+{
+    "success": false,
+    "error": "stealth_proxy_not_allowed",
+    "message": "Stealth proxy is not available on your plan. Upgrade to Hobby or above to use proxy: stealth."
+}
+```
+
+#### 429 - Đã đạt giới hạn đồng thời
+
+Chỉ áp dụng cho dịch vụ hosted. Trả về khi API key đã có số request đang chạy bằng mức tối đa gói của bạn cho phép. Request không được khởi chạy và không bị trừ credit — hãy thử lại khi một trong các request đang chạy hoàn tất.
+
+```json
+{
+    "success": false,
+    "error": "Concurrency limit reached",
+    "message": "Your plan allows 2 concurrent requests. Retry when an in-flight request finishes, or upgrade your plan.",
+    "limit": 2
+}
+```
+
 ## Thực hành tốt
 
 ### Hướng dẫn chọn công cụ tìm kiếm
@@ -440,7 +465,12 @@ try {
 
 ## Dùng đồng thời cao
 
-API **hỗ trợ đồng thời cao gốc**. Bạn có thể gửi nhiều request tìm kiếm đồng thời mà không lo giới hạn tốc độ:
+API xử lý các request tìm kiếm đồng thời một cách song song.
+
+- **Dịch vụ hosted (anycrawl.dev):** mỗi API key chỉ chạy được một số request cùng lúc có giới hạn, tùy theo [gói](https://anycrawl.dev/price) của bạn. Request vượt giới hạn sẽ bị từ chối ngay với [`429`](#429---đã-đạt-giới-hạn-đồng-thời) — hãy thử lại khi một trong các request đang chạy hoàn tất.
+- **Self-hosted:** mặc định không giới hạn đồng thời.
+
+Hãy giữ số request song song trong giới hạn của gói:
 
 ```javascript
 // Concurrent searching example
@@ -464,7 +494,7 @@ console.log(`Completed ${results.length} searches simultaneously`);
 
 ## Giới hạn tốc độ và credit
 
-- **Không giới hạn tốc độ cho request đồng thời** — API hỗ trợ đồng thời cao gốc.
+- **Đồng thời:** với dịch vụ hosted, số request một API key chạy được cùng lúc tùy thuộc vào [gói](https://anycrawl.dev/price) của bạn; request vượt giới hạn trả về `429`. Bản self-hosted mặc định không giới hạn.
 - Theo dõi qua header và `BillingChargeDetails`.
 
 ### Mô hình credit (tìm kiếm + scrape theo sau tùy chọn)
@@ -512,7 +542,7 @@ console.log(`Completed ${results.length} searches simultaneously`);
 
 ### Hỏi: Có giới hạn tốc độ cho tìm kiếm đồng thời không?
 
-**Đáp**: Không, API **hỗ trợ đồng thời cao gốc**. Có thể gửi nhiều request đồng thời không lo rate limit; mọi request trả dữ liệu ngay.
+**Đáp**: Với dịch vụ hosted, có: mỗi API key chỉ chạy được một số request cùng lúc có giới hạn, tùy theo [gói](https://anycrawl.dev/price) của bạn. Request vượt giới hạn sẽ nhận ngay `429 Concurrency limit reached` — hãy thử lại khi một request đang chạy hoàn tất. Bản self-hosted mặc định không giới hạn đồng thời.
 
 ## Hỗ trợ ngôn ngữ và khu vực
 

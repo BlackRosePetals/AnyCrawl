@@ -386,6 +386,31 @@ API คืนสองชนิด:
 }
 ```
 
+#### 403 — ฟีเจอร์ไม่มีในแพ็กเกจของคุณ
+
+เฉพาะบริการแบบโฮสต์เท่านั้น คืนค่าเมื่อ `scrape_options` ขอใช้ฟีเจอร์ที่แพ็กเกจของคุณไม่รวมไว้ — ปัจจุบันคือ `proxy: "stealth"` ซึ่งต้องใช้แพ็กเกจ Hobby ขึ้นไป
+
+```json
+{
+    "success": false,
+    "error": "stealth_proxy_not_allowed",
+    "message": "Stealth proxy is not available on your plan. Upgrade to Hobby or above to use proxy: stealth."
+}
+```
+
+#### 429 — ถึงขีดจำกัด concurrency
+
+เฉพาะบริการแบบโฮสต์เท่านั้น คืนค่าเมื่อ API key มีคำขอที่กำลังทำงานอยู่ครบตามจำนวนที่แพ็กเกจอนุญาตแล้ว คำขอนี้จะไม่ถูกเริ่มและไม่มีการหักเครดิต — ลองใหม่เมื่อคำขอที่กำลังทำงานอยู่รายการใดรายการหนึ่งเสร็จสิ้น
+
+```json
+{
+    "success": false,
+    "error": "Concurrency limit reached",
+    "message": "Your plan allows 2 concurrent requests. Retry when an in-flight request finishes, or upgrade your plan.",
+    "limit": 2
+}
+```
+
 ## แนวทางปฏิบัติที่ดี
 
 ### แนวทางการเลือกเครื่องมือค้นหา
@@ -440,7 +465,12 @@ try {
 
 ## การใช้งาน concurrency สูง
 
-API **รองรับ concurrency สูงแบบเนทีฟ** ส่งคำขอค้นหาพร้อมกันหลายรายการได้โดยไม่ต้องกังวล rate limit:
+API ประมวลผลคำขอค้นหาพร้อมกันแบบขนาน
+
+- **บริการแบบโฮสต์ (anycrawl.dev):** API key แต่ละรายการรันคำขอพร้อมกันได้จำนวนจำกัดตาม[แพ็กเกจ](https://anycrawl.dev/price)ของคุณ คำขอที่เกินขีดจำกัดจะถูกปฏิเสธทันทีด้วย [`429`](#429--ถึงขีดจำกัด-concurrency) — ลองใหม่เมื่อคำขอที่กำลังทำงานอยู่รายการใดรายการหนึ่งเสร็จสิ้น
+- **Self-hosted:** ไม่มีขีดจำกัด concurrency โดยค่าเริ่มต้น
+
+รักษาจำนวนคำขอแบบขนานให้อยู่ภายในขีดจำกัดของแพ็กเกจ:
 
 ```javascript
 // ตัวอย่างการค้นหาพร้อมกัน
@@ -464,7 +494,7 @@ console.log(`Completed ${results.length} searches simultaneously`);
 
 ## ขีดจำกัดอัตราและเครดิต
 
-- **ไม่มี rate limit สำหรับคำขอพร้อมกัน** — API รองรับ concurrency สูงแบบ native
+- **Concurrency:** สำหรับบริการแบบโฮสต์ จำนวนคำขอที่ API key หนึ่งรันพร้อมกันได้ขึ้นอยู่กับ[แพ็กเกจ](https://anycrawl.dev/price)ของคุณ คำขอที่เกินจะได้รับ `429` ส่วนการติดตั้งแบบ self-hosted ไม่มีขีดจำกัดโดยค่าเริ่มต้น
 - ตรวจการใช้งานผ่าน response headers และ `BillingChargeDetails`
 
 ### โมเดลเครดิต (การค้นหา + การดึงตามผลลัพธ์แบบเลือกได้)
@@ -512,7 +542,7 @@ console.log(`Completed ${results.length} searches simultaneously`);
 
 ### ถาม: มี rate limit สำหรับคำขอค้นหาพร้อมกันหรือไม่?
 
-ตอบ: ไม่ API **รองรับ concurrency สูงแบบเนทีฟ** ส่งคำขอพร้อมกันได้โดยไม่ต้องกังวล rate limit และคืนข้อมูลทันที
+ตอบ: สำหรับบริการแบบโฮสต์ มีขีดจำกัด: API key แต่ละรายการรันคำขอพร้อมกันได้จำนวนจำกัดตาม[แพ็กเกจ](https://anycrawl.dev/price)ของคุณ คำขอที่เกินขีดจำกัดจะได้รับ `429 Concurrency limit reached` ทันที — ลองใหม่เมื่อคำขอที่กำลังทำงานอยู่เสร็จสิ้น ส่วนการติดตั้งแบบ self-hosted ไม่มีขีดจำกัด concurrency โดยค่าเริ่มต้น
 
 ## การรองรับภาษาและภูมิภาค
 

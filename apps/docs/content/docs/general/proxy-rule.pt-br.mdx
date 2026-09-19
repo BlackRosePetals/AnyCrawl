@@ -19,6 +19,8 @@ O AnyCrawl suporta quatro modos de proxy que podem ser informados nas requisiç�
 | `stealth` | Usa o proxy configurado em `ANYCRAWL_PROXY_STEALTH_URL` (normalmente residencial ou premium) |
 | URL personalizada | Uma string de URL de proxy completa (por exemplo, `http://user:pass@proxy:8080`), retornada como `custom` nas respostas |
 
+> **Serviço hospedado:** solicitar explicitamente `proxy: "stealth"` exige o [plano Hobby ou superior](https://anycrawl.dev/price). No plano Free, a requisição é rejeitada com `403 stealth_proxy_not_allowed` — inclusive quando `stealth` é definido dentro de um template, de um alvo de monitor ou de uma tarefa agendada. `auto`, `base` e URLs de proxy personalizadas estão disponíveis em todos os planos. Instâncias auto-hospedadas não têm restrição.
+
 ### Exemplo de uso
 
 ```json

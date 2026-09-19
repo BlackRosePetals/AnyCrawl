@@ -273,6 +273,19 @@ Map API รวมสามแหล่ง:
 }
 ```
 
+#### 429 — ถึงขีดจำกัด concurrency
+
+เฉพาะบริการแบบโฮสต์เท่านั้น คืนค่าเมื่อ API key มีคำขอที่กำลังทำงานอยู่ครบตามจำนวนที่แพ็กเกจอนุญาตแล้ว คำขอนี้จะไม่ถูกเริ่มและไม่มีการหักเครดิต — ลองใหม่เมื่อคำขอที่กำลังทำงานอยู่รายการใดรายการหนึ่งเสร็จสิ้น
+
+```json
+{
+    "success": false,
+    "error": "Concurrency limit reached",
+    "message": "Your plan allows 2 concurrent requests. Retry when an in-flight request finishes, or upgrade your plan.",
+    "limit": 2
+}
+```
+
 #### 500 — ข้อผิดพลาดภายในเซิร์ฟเวอร์
 
 ```json
@@ -358,4 +371,4 @@ const crawlResponse = await fetch("/v1/crawl", {
 
 ### ถาม: มี rate limit หรือไม่?
 
-ตอบ: ไม่ API **รองรับ concurrency สูงโดยธรรมชาติ** คุณส่งคำขอพร้อมกันหลายรายการได้โดยไม่ต้องกังวลเรื่อง rate limit
+ตอบ: สำหรับบริการแบบโฮสต์ API key แต่ละรายการรันคำขอพร้อมกันได้จำนวนจำกัดตาม[แพ็กเกจ](https://anycrawl.dev/price)ของคุณ คำขอที่เกินขีดจำกัดจะได้รับ `429 Concurrency limit reached` ทันที — ลองใหม่เมื่อคำขอที่กำลังทำงานอยู่เสร็จสิ้น ส่วนการติดตั้งแบบ self-hosted ไม่มีขีดจำกัด concurrency โดยค่าเริ่มต้น

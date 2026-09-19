@@ -272,6 +272,19 @@ Die Map-API kombiniert drei Quellen:
 }
 ```
 
+#### 429 – Parallelitätslimit erreicht
+
+Nur gehosteter Dienst. Wird zurückgegeben, wenn für den API-Key bereits so viele Anfragen laufen, wie sein Tarif erlaubt. Es wurde nichts gestartet und keine Credits wurden abgebucht – wiederholen Sie die Anfrage, sobald eine Ihrer laufenden Anfragen abgeschlossen ist.
+
+```json
+{
+    "success": false,
+    "error": "Concurrency limit reached",
+    "message": "Your plan allows 2 concurrent requests. Retry when an in-flight request finishes, or upgrade your plan.",
+    "limit": 2
+}
+```
+
 #### 500 – Interner Serverfehler
 
 ```json
@@ -357,4 +370,4 @@ const crawlResponse = await fetch("/v1/crawl", {
 
 ### F: Gibt es ein Ratenlimit?
 
-**A:** Nein, die API **unterstützt nativ hohe Parallelität**. Mehrere gleichzeitige Anfragen sind unkritisch.
+**A:** Im gehosteten Dienst kann jeder API-Key je nach [Tarif](https://anycrawl.dev/price) nur eine begrenzte Anzahl von Anfragen gleichzeitig ausführen. Anfragen über dem Limit liefern sofort `429 Concurrency limit reached` – wiederholen Sie sie, sobald eine laufende Anfrage abgeschlossen ist. Selbst gehostete Deployments haben standardmäßig kein Parallelitätslimit.

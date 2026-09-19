@@ -129,7 +129,7 @@ print("Monitor ID:", data["data"]["monitor_id"])
 
 ### Price Monitor
 
-Track a product price every 15 minutes with structured extraction:
+Track a product price every 15 minutes with structured extraction. On the hosted service this schedule needs a plan that allows 15-minute checks — see [Plan Limits](#plan-limits-hosted-service):
 
 ```json
 {
@@ -442,6 +442,18 @@ await client.getMonitorChange(created.monitor_id, changeId);
 | Ignore selectors | Up to 50 |
 | Tags | Up to 20 |
 | Inline snapshot content | Configurable via `ANYCRAWL_MONITOR_MAX_INLINE_CHARS` (default 256 KB) |
+
+### Plan Limits (Hosted Service)
+
+On the hosted service, your [plan](https://anycrawl.dev/price) caps how many monitors you can keep and how often each one can check. Both are enforced when a monitor is created and whenever its `targets` or `cron_expression` is updated:
+
+| Response | When |
+|---|---|
+| `403 Monitor limit reached` | You already have as many monitors as your plan allows. The response includes `limit`. Delete a monitor or upgrade. |
+| `403 Check frequency too high for your plan` | The cron expression runs more often than your plan allows. The response includes `min_interval_minutes`. |
+| `403 stealth_proxy_not_allowed` | A target sets `options.proxy: "stealth"` on a plan without stealth proxy. |
+
+The check interval is the shortest gap between consecutive runs of the cron expression, evaluated in UTC, so a daylight-saving shift in your `timezone` never counts against the limit. Self-hosted deployments are not limited.
 
 ## Troubleshooting
 

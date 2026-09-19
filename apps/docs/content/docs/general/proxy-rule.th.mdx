@@ -19,6 +19,8 @@ AnyCrawl รองรับสี่โหมด proxy ที่ระบุใ�
 | `stealth` | ใช้ proxy ที่ตั้งใน `ANYCRAWL_PROXY_STEALTH_URL` (มักเป็น residential หรือพรีเมียม) |
 | Custom URL | สตริง URL proxy เต็ม (เช่น `http://user:pass@proxy:8080`) ในการตอบกลับจะแสดงเป็น `custom` |
 
+> **บริการแบบโฮสต์:** การระบุ `proxy: "stealth"` โดยตรงต้องใช้[แพ็กเกจ Hobby ขึ้นไป](https://anycrawl.dev/price) ในแพ็กเกจ Free คำขอจะถูกปฏิเสธด้วย `403 stealth_proxy_not_allowed` — รวมถึงกรณีที่ตั้ง `stealth` ไว้ในเทมเพลต เป้าหมายของ monitor หรืองานตามกำหนดเวลา ส่วน `auto`, `base` และ URL proxy แบบกำหนดเองใช้ได้ในทุกแพ็กเกจ การติดตั้งแบบ self-hosted ไม่มีข้อจำกัดนี้
+
 ### ตัวอย่างการใช้งาน
 
 ```json

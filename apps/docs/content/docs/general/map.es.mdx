@@ -273,6 +273,19 @@ La API Map combina tres fuentes para descubrir URLs:
 }
 ```
 
+#### 429 - Límite de concurrencia alcanzado
+
+Solo en el servicio alojado. Se devuelve cuando la API key ya tiene en ejecución tantas solicitudes como permite su plan. No se inició nada ni se cobraron créditos: reintenta cuando termine alguna de tus solicitudes en curso.
+
+```json
+{
+    "success": false,
+    "error": "Concurrency limit reached",
+    "message": "Your plan allows 2 concurrent requests. Retry when an in-flight request finishes, or upgrade your plan.",
+    "limit": 2
+}
+```
+
 #### 500 - Error interno del servidor
 
 ```json
@@ -358,4 +371,4 @@ R: Map extrae las URLs tal como aparecen en sitemaps y enlaces de página. No si
 
 ### P: ¿Hay límite de velocidad?
 
-R: No, la API **admite alta concurrencia de forma nativa**. Puedes hacer varias peticiones simultáneas sin preocuparte por límites de frecuencia.
+R: En el servicio alojado, cada API key puede ejecutar un número limitado de solicitudes a la vez, según tu [plan](https://anycrawl.dev/price). Las solicitudes que superan el límite devuelven `429 Concurrency limit reached` de inmediato; reintenta cuando termine una solicitud en curso. Las instalaciones autoalojadas no tienen límite de concurrencia por defecto.

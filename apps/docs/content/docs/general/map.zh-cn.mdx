@@ -273,6 +273,19 @@ Map API 结合三种来源发现 URL：
 }
 ```
 
+#### 429 - 并发数已达上限
+
+仅限托管服务。当该 API Key 正在运行的请求数已达到套餐允许的上限时返回。请求不会被执行，也不会扣除积分 —— 请在某个进行中的请求完成后重试。
+
+```json
+{
+    "success": false,
+    "error": "Concurrency limit reached",
+    "message": "Your plan allows 2 concurrent requests. Retry when an in-flight request finishes, or upgrade your plan.",
+    "limit": 2
+}
+```
+
 #### 500 - 内部服务器错误
 
 ```json
@@ -358,4 +371,4 @@ const crawlResponse = await fetch("/v1/crawl", {
 
 ### 问：有速率限制吗？
 
-答：没有，API **原生支持高并发**。你可以同时发起多个请求，无需担心速率限制。
+答：在托管服务上，每个 API Key 可同时运行的请求数有限，具体取决于你的[套餐](https://anycrawl.dev/price)。超出上限的请求会立即返回 `429 Concurrency limit reached` —— 请在某个进行中的请求完成后重试。自托管部署默认不限制并发。
