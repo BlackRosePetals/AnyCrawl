@@ -1,0 +1,71 @@
+name: Docs Docker Image CI
+
+# Docs ship with each release: a v* tag builds ghcr.io/<owner>/anycrawl-docs
+# (:latest + :<tag>) and then triggers the Coolify deployment that runs it.
+# "Run workflow" builds the chosen ref instead (a tag gets :<tag>, main gets
+# :sha-<short>) — for re-deploying a release or an out-of-cycle docs fix.
+on:
+    push:
+        tags:
+            - v*
+    workflow_dispatch:
+
+concurrency:
+    group: docs-image
+    cancel-in-progress: false
+
+jobs:
+    build:
+        # Never ship docs from a feature branch: only tags and main.
+        if: github.ref_type == 'tag' || github.ref == 'refs/heads/main'
+        # Production runs on an arm64 host; build natively instead of under QEMU.
+        runs-on: ubuntu-24.04-arm
+        permissions:
+            contents: read
+            packages: write
+        env:
+            IMAGE: ghcr.io/${{ github.repository_owner }}/anycrawl-docs
+            COOLIFY_DOCS_DEPLOY_URL: ${{ secrets.COOLIFY_DOCS_DEPLOY_URL }}
+            COOLIFY_API_TOKEN: ${{ secrets.COOLIFY_API_TOKEN }}
+
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Image version tag
+              id: version
+              run: |
+                  if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+                    echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+                  else
+                    echo "tag=sha-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+                  fi
+
+            - name: Set up Docker Buildx
+              uses: docker/setup-buildx-action@v3
+
+            - name: Login to GitHub Container Registry
+              uses: docker/login-action@v3
+              with:
+                  registry: ghcr.io
+                  username: ${{ github.actor }}
+                  password: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Build and push docs image
+              uses: docker/build-push-action@v6
+              with:
+                  context: .
+                  file: ./apps/docs/Dockerfile
+                  platforms: linux/arm64
+                  push: true
+                  tags: |
+                      ${{ env.IMAGE }}:latest
+                      ${{ env.IMAGE }}:${{ steps.version.outputs.tag }}
+                  cache-from: type=gha,scope=docs
+                  cache-to: type=gha,scope=docs,mode=max
+
+            - name: Deploy on Coolify
+              if: env.COOLIFY_DOCS_DEPLOY_URL != '' && env.COOLIFY_API_TOKEN != ''
+              run: |
+                  curl --fail-with-body -sS --max-time 60 \
+                    -H "Authorization: Bearer ${COOLIFY_API_TOKEN}" \
+                    "${COOLIFY_DOCS_DEPLOY_URL}"
