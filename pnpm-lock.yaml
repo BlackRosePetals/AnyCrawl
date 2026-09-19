@@ -6,7 +6,7 @@ settings:
 
 patchedDependencies:
   cloakbrowser@0.5.10:
-    hash: dfe6a0396a4aae973beda8a99966deb9054cf152a9050804ff75432ef3c0238f
+    hash: 020ecc63e018ea384170a9449721b6f2b3cdcceb5953c7bff4cb322c2c16bbf4
     path: patches/cloakbrowser@0.5.10.patch
 
 importers:
@@ -478,7 +478,7 @@ importers:
         version: 1.1.2
       cloakbrowser:
         specifier: 0.5.10
-        version: 0.5.10(patch_hash=dfe6a0396a4aae973beda8a99966deb9054cf152a9050804ff75432ef3c0238f)(mmdb-lib@3.0.2)(playwright-core@1.55.0)(puppeteer-core@24.22.0)(socks-proxy-agent@10.0.0)
+        version: 0.5.10(patch_hash=020ecc63e018ea384170a9449721b6f2b3cdcceb5953c7bff4cb322c2c16bbf4)(mmdb-lib@3.0.2)(playwright-core@1.55.0)(puppeteer-core@24.22.0)(socks-proxy-agent@10.0.0)
       crawlee:
         specifier: ^3.13.0
         version: 3.15.0(@types/node@22.14.1)(playwright@1.55.0)(puppeteer@24.22.0(typescript@5.8.2))
@@ -10673,7 +10673,7 @@ snapshots:
       strip-ansi: 6.0.1
       wrap-ansi: 7.0.0
 
-  cloakbrowser@0.5.10(patch_hash=dfe6a0396a4aae973beda8a99966deb9054cf152a9050804ff75432ef3c0238f)(mmdb-lib@3.0.2)(playwright-core@1.55.0)(puppeteer-core@24.22.0)(socks-proxy-agent@10.0.0):
+  cloakbrowser@0.5.10(patch_hash=020ecc63e018ea384170a9449721b6f2b3cdcceb5953c7bff4cb322c2c16bbf4)(mmdb-lib@3.0.2)(playwright-core@1.55.0)(puppeteer-core@24.22.0)(socks-proxy-agent@10.0.0):
     dependencies:
       tar: 7.4.3
     optionalDependencies:
