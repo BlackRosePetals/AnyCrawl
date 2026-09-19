@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-09-19
+
+### Added
+
+- **Per-plan limits for the hosted service** — concurrency, stealth proxy access, monitor count and minimum monitor check interval are enforced per API key tier. Controlled by `ANYCRAWL_API_PLAN_LIMITS_ENABLED`, which follows the existing `ANYCRAWL_API_AUTH_ENABLED` / `ANYCRAWL_API_CREDITS_ENABLED` convention: **unset means off**, so self-hosted deployments see no behaviour change. `ANYCRAWL_PLAN_LIMITS_JSON` overrides the default table per deployment and is validated at boot.
+
+  | Tier | Concurrency | Stealth proxy | Monitors | Fastest monitor check |
+  |---|---|---|---|---|
+  | free | 2 | no | 1 | every 6 hours |
+  | hobby | 5 | yes | 10 | hourly |
+  | pro | 20 | yes | 50 | every 15 minutes |
+  | business | 50 | yes | 200 | every 15 minutes |
+
+  AI formats (`json`, `summary`) remain available on every tier.
+
+### Fixed
+
+- Default missing GeoIP metadata (timezone to `UTC`, locale to `en-US`) after the proxy exit IP resolves, instead of failing the browser launch. The same exit IP is reused for WebRTC; a proxy gateway address is no longer substituted for an unobserved exit IP.
+- Isolate browser startup failures to the failing request, respect retry budgets, and stop terminal task states from being overwritten. Queue handoffs and crawl seed counts are deduplicated.
+- Copy worker dependency patches to the workspace root in every Docker install stage, so worker images resolve the CloakBrowser patch.
+- Auto-crawl reads crawl controls and nested page options from the normalized API schema output, keeps each child crawl bounded to one page, and respects same-hostname selection.
+- Crawl sends flat page options to scrape workers, which consume them flat; nested options were silently ignored.
+
+### Upgrade notes
+
+- **Plan limits are off unless you set `ANYCRAWL_API_PLAN_LIMITS_ENABLED=true`** together with `ANYCRAWL_API_AUTH_ENABLED=true`. Self-hosted deployments that set neither need no action.
+- When enabled, concurrency is tracked in Redis on a dedicated fail-fast connection. A Redis outage lets requests through rather than blocking them.
+- Plan checks run on resolved options, so they also cover monitor targets, scheduled-task payloads and template `reqOptions`, not only direct request bodies.
+- Monitor frequency floors are evaluated in UTC, so a wall-clock schedule in a DST timezone is not rejected for the hour the clock moves.
+- No new database migrations. Server workspace packages move to 1.1.0; the independently versioned JS SDK remains at 0.0.9.
+
 ## [1.0.0] - 2026-09-09
 
 ### Added
