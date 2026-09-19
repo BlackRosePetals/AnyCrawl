@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.1] - 2026-09-20
+
+### Added
+
+- **Docs ship with each release.** Pushing a `v*` tag now also builds the documentation site image `ghcr.io/any4ai/anycrawl-docs` (`:latest` and `:<tag>`, linux/arm64). When the `COOLIFY_DOCS_DEPLOY_URL` and `COOLIFY_API_TOKEN` repository secrets are set, it then triggers the docs.anycrawl.dev deployment. "Run workflow" rebuilds `main` (tagged `:sha-<short>`) or a tag, and refuses any other branch.
+- `apps/docs/Dockerfile` installs only the docs package's dependencies and produces a standalone, non-root image with a healthcheck. Standalone output is enabled only when `DOCS_STANDALONE=1`, so `next dev`/`next start` behave as before.
+
+### Upgrade notes
+
+- No server code changes and no database migrations. Self-hosted deployments need no action.
+- Server workspace packages move to 1.2.1. The independently versioned JS SDK remains at 0.0.9.
+
 ## [1.2.0] - 2026-09-20
 
 ### Added
