@@ -23,23 +23,11 @@ function optionBlocks(body: unknown): Record<string, unknown>[] {
     return blocks;
 }
 
-function wantsStealth(blocks: Record<string, unknown>[]): boolean {
-    return blocks.some((b) => b.proxy === "stealth");
-}
-
-function wantsAiFormat(blocks: Record<string, unknown>[]): string | null {
-    for (const block of blocks) {
-        const formats = block.formats;
-        if (!Array.isArray(formats)) continue;
-        for (const format of ["json", "summary"]) {
-            if (formats.includes(format)) return format;
-        }
-    }
-    return null;
-}
-
 /**
- * Gate the plan-restricted scrape features (stealth proxy, AI formats).
+ * Gate the plan-restricted scrape features.
+ *
+ * Only the stealth proxy is gated: it costs residential bandwidth per request.
+ * The AI-backed formats (`json`, `summary`) stay available on every tier.
  *
  * Like the concurrency gate, this is a no-op unless auth AND plan limits are
  * both enabled, so self-hosted installs keep every feature.
@@ -55,27 +43,13 @@ export const planFeatureMiddleware = (
     }
 
     const limits = getPlanLimits(req.auth?.subscriptionTier);
-    const blocks = optionBlocks(req.body);
-
-    if (!limits.stealthProxy && wantsStealth(blocks)) {
+    if (!limits.stealthProxy && optionBlocks(req.body).some((b) => b.proxy === "stealth")) {
         res.status(403).json({
             success: false,
             error: "Stealth proxy not available on your plan",
             message: "Upgrade to Hobby or above to use proxy: stealth.",
         });
         return;
-    }
-
-    if (!limits.aiFormats) {
-        const format = wantsAiFormat(blocks);
-        if (format) {
-            res.status(403).json({
-                success: false,
-                error: `The "${format}" format is not available on your plan`,
-                message: `Upgrade to Hobby or above to use AI-backed formats.`,
-            });
-            return;
-        }
     }
 
     next();

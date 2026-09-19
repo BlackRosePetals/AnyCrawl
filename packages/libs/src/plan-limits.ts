@@ -7,8 +7,6 @@ export interface PlanLimits {
     concurrency: number;
     /** Whether `proxy: stealth` may be requested. */
     stealthProxy: boolean;
-    /** Whether the AI-backed formats (`json`, `summary`) may be requested. */
-    aiFormats: boolean;
     /** Max monitors the owner may keep at once. */
     monitors: number;
     /** Shortest allowed interval between monitor checks, in minutes. */
@@ -24,17 +22,16 @@ export interface PlanLimits {
 export const UNLIMITED_PLAN_LIMITS: PlanLimits = Object.freeze({
     concurrency: Number.POSITIVE_INFINITY,
     stealthProxy: true,
-    aiFormats: true,
     monitors: Number.POSITIVE_INFINITY,
     minMonitorIntervalMinutes: 0,
     retentionDays: Number.POSITIVE_INFINITY,
 });
 
 const DEFAULT_PLAN_LIMITS: Record<PlanTier, PlanLimits> = {
-    free: { concurrency: 2, stealthProxy: false, aiFormats: false, monitors: 1, minMonitorIntervalMinutes: 1440, retentionDays: 7 },
-    hobby: { concurrency: 5, stealthProxy: true, aiFormats: true, monitors: 10, minMonitorIntervalMinutes: 60, retentionDays: 30 },
-    pro: { concurrency: 20, stealthProxy: true, aiFormats: true, monitors: 50, minMonitorIntervalMinutes: 15, retentionDays: 90 },
-    business: { concurrency: 50, stealthProxy: true, aiFormats: true, monitors: 200, minMonitorIntervalMinutes: 15, retentionDays: 365 },
+    free: { concurrency: 2, stealthProxy: false, monitors: 1, minMonitorIntervalMinutes: 1440, retentionDays: 7 },
+    hobby: { concurrency: 5, stealthProxy: true, monitors: 10, minMonitorIntervalMinutes: 60, retentionDays: 30 },
+    pro: { concurrency: 20, stealthProxy: true, monitors: 50, minMonitorIntervalMinutes: 15, retentionDays: 90 },
+    business: { concurrency: 50, stealthProxy: true, monitors: 200, minMonitorIntervalMinutes: 15, retentionDays: 365 },
 };
 
 const TIERS: PlanTier[] = ["free", "hobby", "pro", "business"];
