@@ -38,6 +38,8 @@ jest.unstable_mockModule("@anycrawl/db", () => ({
     listDatasetRunItems: jest.fn(),
     listDatasetChanges: jest.fn(),
     listRunWarnings: jest.fn(),
+    // Pass-through: what the real helper does for a dataset with no retention policy.
+    withVisibleItemCounts: jest.fn(async (_db: any, rows: any[]) => rows),
 }));
 
 jest.unstable_mockModule("@anycrawl/scrape", () => ({

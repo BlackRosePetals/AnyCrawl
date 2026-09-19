@@ -240,6 +240,93 @@ function combine(conditions: any[]): any {
     return conditions.length === 1 ? conditions[0] : and(...conditions);
 }
 
+/** A dataset's `retention_policy` as stored. */
+export type DatasetRetentionPolicy = { item_days?: number; change_days?: number } | null | undefined;
+
+export interface DatasetVisibilityCutoffs {
+    /** Inactive items last seen before this are hidden. Null: no item is hidden. */
+    itemCutoff: Date | null;
+    /** Changes and run warnings created before this are hidden. Null: none hidden. */
+    changeCutoff: Date | null;
+}
+
+/**
+ * What a dataset's retention policy hides from reads.
+ *
+ * Retention is a VIEW, not a purge: nothing is deleted. Rows past a cutoff stay
+ * in the database and reappear if the policy is loosened or cleared. Following
+ * the platform design, an active item is never hidden however old it is.
+ */
+export function datasetVisibilityCutoffs(
+    policy: DatasetRetentionPolicy,
+    now = new Date()
+): DatasetVisibilityCutoffs {
+    const cutoff = (days: unknown): Date | null =>
+        typeof days === "number" && Number.isFinite(days) && days > 0
+            ? new Date(now.getTime() - days * 86_400_000)
+            : null;
+    return { itemCutoff: cutoff(policy?.item_days), changeCutoff: cutoff(policy?.change_days) };
+}
+
+/** An item stays visible while it is active, or while last seen after the cutoff. */
+export function visibleItemCondition(itemCutoff: Date): any {
+    return or(eq(schemas.datasetItems.isActive, true), gte(schemas.datasetItems.lastSeenAt, itemCutoff));
+}
+
+/**
+ * Cutoffs for a dataset, looked up by id.
+ *
+ * Every user-facing read resolves the policy itself rather than trusting the
+ * caller to pass it, so a new call site cannot forget and leak hidden rows.
+ * Module-level on purpose: the Dataset statics are re-exported unbound, so they
+ * must not reach helpers through `this`.
+ */
+export async function datasetVisibilityCutoffsById(
+    db: DBExecutor,
+    datasetId: string
+): Promise<DatasetVisibilityCutoffs> {
+    const rows = await db
+        .select({ retentionPolicy: schemas.datasets.retentionPolicy })
+        .from(schemas.datasets)
+        .where(eq(schemas.datasets.uuid, datasetId))
+        .limit(1);
+    return datasetVisibilityCutoffs(rows[0]?.retentionPolicy);
+}
+
+/** Cutoffs for the dataset a run belongs to. */
+async function datasetVisibilityCutoffsByRun(db: DBExecutor, runId: string): Promise<DatasetVisibilityCutoffs> {
+    const rows = await db
+        .select({ retentionPolicy: schemas.datasets.retentionPolicy })
+        .from(schemas.datasetRuns)
+        .innerJoin(schemas.datasets, eq(schemas.datasetRuns.datasetId, schemas.datasets.uuid))
+        .where(eq(schemas.datasetRuns.uuid, runId))
+        .limit(1);
+    return datasetVisibilityCutoffs(rows[0]?.retentionPolicy);
+}
+
+/**
+ * Replace each dataset's `itemCount` with the number of items its retention
+ * policy leaves visible, so the count matches what listing the items returns.
+ * Datasets without an item cutoff keep the stored counter and cost no query.
+ * `activeItemCount` never changes: active items are never hidden.
+ */
+export async function withVisibleItemCounts<T extends { uuid: string; itemCount: number; retentionPolicy?: DatasetRetentionPolicy }>(
+    db: DBExecutor,
+    rows: T[]
+): Promise<T[]> {
+    return Promise.all(
+        rows.map(async (row) => {
+            const { itemCutoff } = datasetVisibilityCutoffs(row.retentionPolicy);
+            if (!itemCutoff) return row;
+            const [result] = await db
+                .select({ count: sql<number>`count(*)` })
+                .from(schemas.datasetItems)
+                .where(and(eq(schemas.datasetItems.datasetId, row.uuid), visibleItemCondition(itemCutoff)));
+            return { ...row, itemCount: Number(result?.count ?? 0) };
+        })
+    );
+}
+
 export class Dataset {
     /** Create a manually-owned dataset. */
     static async create(
@@ -422,6 +509,10 @@ export class Dataset {
         for (const f of opts.filters ?? []) {
             conditions.push(filterCondition(f));
         }
+        // Applies to both the sorted and default paths below, and to exports,
+        // which page through this same function.
+        const { itemCutoff } = await datasetVisibilityCutoffsById(db, opts.datasetId);
+        if (itemCutoff) conditions.push(visibleItemCondition(itemCutoff));
 
         if (opts.sort) {
             const expr = fieldExpr(pathSegments(opts.sort.path), opts.sort.fieldType);
@@ -513,9 +604,20 @@ export class Dataset {
                 exprKeyset(seqExpr, schemas.datasetRunItems.uuid, "asc", Number(opts.cursor.v), opts.cursor.id)
             );
         }
-        const rows = await db
+        // A run member is hidden when the item it points at is hidden. Join only
+        // when there is a cutoff, so datasets without a policy keep the old query.
+        const { itemCutoff } = await datasetVisibilityCutoffsByRun(db, runId);
+        let query: any = db
             .select({ item: schemas.datasetRunItems, sortValue: seqExpr })
-            .from(schemas.datasetRunItems)
+            .from(schemas.datasetRunItems);
+        if (itemCutoff) {
+            query = query.innerJoin(
+                schemas.datasetItems,
+                eq(schemas.datasetRunItems.datasetItemId, schemas.datasetItems.uuid)
+            );
+            conditions.push(visibleItemCondition(itemCutoff));
+        }
+        const rows = await query
             .where(combine(conditions))
             .orderBy(sql`${seqExpr} ASC, ${schemas.datasetRunItems.uuid} ASC`)
             .limit(opts.limit + 1);
@@ -551,6 +653,8 @@ export class Dataset {
         if (opts.changeType) conditions.push(eq(schemas.datasetItemChanges.changeType, opts.changeType));
         if (opts.since) conditions.push(gte(schemas.datasetItemChanges.createdAt, opts.since));
         if (opts.until) conditions.push(lte(schemas.datasetItemChanges.createdAt, opts.until));
+        const { changeCutoff } = await datasetVisibilityCutoffsById(db, datasetId);
+        if (changeCutoff) conditions.push(gte(schemas.datasetItemChanges.createdAt, changeCutoff));
         if (opts.cursor) {
             conditions.push(
                 timestampKeyset(schemas.datasetItemChanges.createdAt, schemas.datasetItemChanges.uuid, "desc", opts.cursor)
@@ -582,6 +686,9 @@ export class Dataset {
         if (opts.code) conditions.push(eq(schemas.runWarnings.code, opts.code));
         if (opts.scope) conditions.push(eq(schemas.runWarnings.scope, opts.scope));
         if (opts.itemKey) conditions.push(eq(schemas.runWarnings.itemKey, opts.itemKey));
+        // Warnings age out on the change axis, per the platform design.
+        const { changeCutoff } = await datasetVisibilityCutoffsByRun(db, runId);
+        if (changeCutoff) conditions.push(gte(schemas.runWarnings.createdAt, changeCutoff));
         if (opts.cursor) {
             conditions.push(
                 timestampKeyset(schemas.runWarnings.createdAt, schemas.runWarnings.uuid, "desc", opts.cursor)

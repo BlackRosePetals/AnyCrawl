@@ -154,6 +154,14 @@ export const getDatasetRun = Dataset.getRun;
 export const listDatasetRunItems = Dataset.listRunItems;
 export const listDatasetChanges = Dataset.listChanges;
 export const listRunWarnings = Dataset.listRunWarnings;
+// Retention is a view: these hide rows past a dataset's retention_policy, never delete them.
+export {
+    withVisibleItemCounts,
+    datasetVisibilityCutoffs,
+    datasetVisibilityCutoffsById,
+    type DatasetRetentionPolicy,
+    type DatasetVisibilityCutoffs,
+} from "./model/Dataset.js";
 
 // Dataset exports (async JSONL/CSV export jobs — platform §11 exports / master-plan §3.2)
 export const createDatasetExport = DatasetExport.create;
